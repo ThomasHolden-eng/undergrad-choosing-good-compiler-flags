@@ -1,3 +1,3 @@
 module 6CCS3PRJ/thomasholden
 
-go 1.24.6
+go 1.25.3
