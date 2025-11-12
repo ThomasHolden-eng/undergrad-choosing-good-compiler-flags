@@ -10,7 +10,10 @@ import (
 )
 
 // Takes a file reference, pass list & unique id
+//
 // Returns compilation time, binary size, file reference & error
+//
+// Caller must resolve returned executable reference (close and delete)
 func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, int, *os.File, error) {
 	inputFileName := file.Name()
 
@@ -46,7 +49,7 @@ func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, 
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
 
-	optArgs := []string{"\\time", "-p", "opt"}
+	optArgs := []string{"/usr/bin/time", "-p", "opt"}
 	optArgs = append(optArgs, "-passes="+strings.Join(passStrings, ","))
 	optArgs = append(optArgs, "-o", optName, inputFileName)
 	cmd := exec.Command(optArgs[0], optArgs[1:]...)
@@ -57,15 +60,15 @@ func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, 
 		return 0, 0, nil, fmt.Errorf("opt failed: %w\nStderr: %s", err, stderr.String())
 	}
 
-	optDuration, err := extractUserTime(stdout.String())
+	optDuration, err := extractUserTime(stderr.String())
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stdout.String())
+		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
 	}
 
 	stderr.Reset()
 	stdout.Reset()
 
-	llcArgs := []string{"\\time", "-p", "llc", "-filetype=obj", "-o", objName, optName}
+	llcArgs := []string{"/usr/bin/time", "-p", "llc", "-filetype=obj", "-o", objName, optName}
 	cmdLlc := exec.Command(llcArgs[0], llcArgs[1:]...)
 	cmdLlc.Stderr = &stderr
 	cmd.Stdout = &stdout
@@ -74,15 +77,15 @@ func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, 
 		return 0, 0, nil, fmt.Errorf("llc failed: %w\nStderr: %s", err, stderr.String())
 	}
 
-	llcDuration, err := extractUserTime(stdout.String())
+	llcDuration, err := extractUserTime(stderr.String())
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stdout.String())
+		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
 	}
 
 	stderr.Reset()
 	stdout.Reset()
 
-	clangArgs := []string{"\\time", "-p", "clang", "-o", binName, objName}
+	clangArgs := []string{"/usr/bin/time", "-p", "clang++", "-o", binName, objName}
 	cmdLink := exec.Command(clangArgs[0], clangArgs[1:]...)
 	cmdLink.Stderr = &stderr
 	cmd.Stdout = &stdout
@@ -91,9 +94,9 @@ func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, 
 		return 0, 0, nil, fmt.Errorf("link (clang) failed: %w\nStderr: %s", err, stderr.String())
 	}
 
-	clangDuration, err := extractUserTime(stdout.String())
+	clangDuration, err := extractUserTime(stderr.String())
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stdout.String())
+		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
 	}
 
 	finalFile, err := os.Open(binName)
@@ -107,7 +110,7 @@ func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, 
 		return 0, 0, nil, fmt.Errorf("failed to size binary '%s': %w", binName, err)
 	}
 
-	totalUserTime := time.Duration(optDuration + llcDuration + clangDuration)
+	totalUserTime := time.Duration((optDuration + llcDuration + clangDuration) * float32(time.Second))
 	return totalUserTime, binSize, finalFile, nil
 }
 

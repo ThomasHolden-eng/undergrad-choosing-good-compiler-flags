@@ -3,8 +3,8 @@ package testharness
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
-	"strings"
 )
 
 type Harness struct {
@@ -12,9 +12,12 @@ type Harness struct {
 }
 
 func extractUserTime(timeOut string) (float32, error) {
-	userTimeLine := strings.Split(timeOut, "\n")[1]
-	userTimeLine = strings.ReplaceAll(userTimeLine, " ", "")
-	userTimeLine = strings.TrimPrefix(userTimeLine, "user")
+	if timeOut == "" {
+		return 0.0, fmt.Errorf("received no input")
+	}
+
+	r, _ := regexp.Compile("user ([0-9]+.[0-9]+)")
+	userTimeLine := r.FindStringSubmatch(timeOut)[1]
 
 	float, err := strconv.ParseFloat(userTimeLine, 32)
 	return float32(float), err
