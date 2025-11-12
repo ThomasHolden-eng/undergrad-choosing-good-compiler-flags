@@ -1,26 +1,34 @@
 package main
 
-import "time"
+import (
+	"6CCS3PRJ/thomasholden/testharness"
+	"os"
+	"time"
+)
 
 type Result struct {
 	score   float32
-	passSeq []byte
+	passSeq []int
 }
 
 type WorkerPool struct {
-	passSeq    chan []byte
+	passSeq    chan []int
 	fileNum    chan int
 	Results    chan Result
-	SourceFile string
+	SourceFile *os.File
 }
 
-const COMPILATION_WEIGHT float32 = 0.1
-const EXECUTION_WEIGHT float32 = 0.9
+const (
+	COMPILATION_WEIGHT  float32 = 0.1
+	MEMORY_USAGE_WEIGHT float32 = 0.1
+	BINARY_SIZE_WEIGHT  float32 = 0.1
+	EXECUTION_WEIGHT    float32 = 0.7
+)
 
 func NewWorkerPool(file string, workers, numJobs int) *WorkerPool {
 	pool := new(WorkerPool)
 
-	pool.passSeq = make(chan []byte, numJobs)
+	pool.passSeq = make(chan []int, numJobs)
 	pool.fileNum = make(chan int, workers)
 	pool.Results = make(chan Result, numJobs)
 
@@ -28,12 +36,16 @@ func NewWorkerPool(file string, workers, numJobs int) *WorkerPool {
 		pool.fileNum <- i
 	}
 
-	pool.SourceFile = file
+	sourceFile, err := os.Open(file)
+	if err != nil {
+		return nil
+	}
+	pool.SourceFile = sourceFile
 
 	return pool
 }
 
-func (p WorkerPool) AddPassSequence(seq []byte) {
+func (p WorkerPool) AddPassSequence(seq []int) {
 	p.passSeq <- seq
 }
 
@@ -43,27 +55,23 @@ func (p WorkerPool) StartPool() {
 	}
 }
 
-func (p WorkerPool) runJob(seq []byte, diff int) {
-	compilation_t := compileSource(seq, p.SourceFile, diff)
-	execution_t := executeSource(p.SourceFile, diff)
+func (p WorkerPool) runJob(seq []int, diff int) {
+	defer func() { p.fileNum <- diff }()
 
-	heuristic := valueFromJobTime(compilation_t, execution_t)
+	compilation_t, binary_size, newFile, _ := testharness.CompileFileWithPasses(p.SourceFile, seq, diff)
+	execution_t, memory_usage, _ := testharness.RunFile(newFile, diff)
+
+	heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
 
 	p.Results <- Result{
 		score:   heuristic,
 		passSeq: seq,
 	}
-	p.fileNum <- diff
 }
 
-func valueFromJobTime(compilation, execution time.Duration) float32 {
-	return COMPILATION_WEIGHT*float32(compilation) + EXECUTION_WEIGHT*float32(execution)
-}
-
-func compileSource(seq []byte, filename string, diff int) time.Duration {
-	return time.Second
-}
-
-func executeSource(filename string, diff int) time.Duration {
-	return time.Second
+func valueFromJobStats(compilation, execution time.Duration, size, memory int) float32 {
+	return (COMPILATION_WEIGHT*float32(compilation) +
+		EXECUTION_WEIGHT*float32(execution) +
+		BINARY_SIZE_WEIGHT*float32(size) +
+		MEMORY_USAGE_WEIGHT*float32(memory))
 }
