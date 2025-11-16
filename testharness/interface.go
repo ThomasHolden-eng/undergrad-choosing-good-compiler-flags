@@ -9,109 +9,67 @@ import (
 	"time"
 )
 
-// Takes a file reference, pass list & unique id
+// CompileFileWithPasses takes a file reference, pass list & unique id
 //
 // Returns compilation time, binary size, file reference & error
 //
 // Caller must resolve returned executable reference (close and delete)
-func CompileFileWithPasses(file *os.File, passes []int, id int) (time.Duration, int, *os.File, error) {
-	inputFileName := file.Name()
+func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (time.Duration, int, *os.File, error) {
+	if len(compilationCommand) == 0 {
+		return 0, 0, nil, fmt.Errorf("empty command passed")
+	}
 
 	passStrings := make([]string, len(passes))
 	for i, pass := range passes {
 		passStrings[i] = IntToFlag(pass)
 	}
 
-	optFile, err := os.CreateTemp("", fmt.Sprintf("opt-%d-*.ll", id))
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	optName := optFile.Name()
-	optFile.Close()
-
-	objFile, err := os.CreateTemp("", fmt.Sprintf("obj-%d-*.o", id))
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to create second temporary file: %w", err)
-	}
-	objName := objFile.Name()
-	objFile.Close()
-
 	binFile, err := os.CreateTemp("", fmt.Sprintf("bin-%d-*", id))
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to create third temporary file: %w", err)
+		return 0, 0, nil, fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	binName := binFile.Name()
 	binFile.Close()
 
-	defer os.Remove(optName)
-	defer os.Remove(objName)
-
 	var stderr bytes.Buffer
-	var stdout bytes.Buffer
 
-	optArgs := []string{"/usr/bin/time", "-p", "opt"}
-	optArgs = append(optArgs, "-passes="+strings.Join(passStrings, ","))
-	optArgs = append(optArgs, "-o", optName, inputFileName)
-	cmd := exec.Command(optArgs[0], optArgs[1:]...)
+	command := []string{"/usr/bin/time", "-p"}
+	command, compilationCommand = append(command, compilationCommand[0]), compilationCommand[1:]
+	command = append(command, []string{"-mllvm", "-passes=" + strings.Join(passStrings, ",")}...)
+	command = append(command, compilationCommand...)
+	command = append(command, "-o", binName)
+
+	fmt.Printf("%v\n", command)
+
+	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stderr = &stderr
-	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
-		return 0, 0, nil, fmt.Errorf("opt failed: %w\nStderr: %s", err, stderr.String())
+		os.Remove(binName)
+		return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
 	}
 
-	optDuration, err := extractUserTime(stderr.String())
+	duration, err := extractUserTime(stderr.String())
 	if err != nil {
+		os.Remove(binName)
 		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
 	}
 
-	stderr.Reset()
-	stdout.Reset()
-
-	llcArgs := []string{"/usr/bin/time", "-p", "llc", "-filetype=obj", "-o", objName, optName}
-	cmdLlc := exec.Command(llcArgs[0], llcArgs[1:]...)
-	cmdLlc.Stderr = &stderr
-	cmd.Stdout = &stdout
-
-	if err := cmdLlc.Run(); err != nil {
-		return 0, 0, nil, fmt.Errorf("llc failed: %w\nStderr: %s", err, stderr.String())
-	}
-
-	llcDuration, err := extractUserTime(stderr.String())
+	binFile, err = os.Open(binName)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
+		os.Remove(binName)
+		return 0, 0, nil, fmt.Errorf("failed to open return binary: %w", err)
 	}
 
-	stderr.Reset()
-	stdout.Reset()
-
-	clangArgs := []string{"/usr/bin/time", "-p", "clang++", "-o", binName, objName}
-	cmdLink := exec.Command(clangArgs[0], clangArgs[1:]...)
-	cmdLink.Stderr = &stderr
-	cmd.Stdout = &stdout
-
-	if err := cmdLink.Run(); err != nil {
-		return 0, 0, nil, fmt.Errorf("link (clang) failed: %w\nStderr: %s", err, stderr.String())
-	}
-
-	clangDuration, err := extractUserTime(stderr.String())
+	binSize, err := getFileSize(binFile)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
-	}
-
-	finalFile, err := os.Open(binName)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("failed to open final binary '%s': %w", binName, err)
-	}
-
-	binSize, err := getFileSize(finalFile)
-	if err != nil {
-		finalFile.Close()
+		binFile.Close()
+		os.Remove(binName)
 		return 0, 0, nil, fmt.Errorf("failed to size binary '%s': %w", binName, err)
 	}
 
-	totalUserTime := time.Duration((optDuration + llcDuration + clangDuration) * float32(time.Second))
-	return totalUserTime, binSize, finalFile, nil
+	totalTime := time.Duration(duration * float32(time.Second))
+	return totalTime, binSize, binFile, nil
 }
 
 // Takes a file reference and unique id

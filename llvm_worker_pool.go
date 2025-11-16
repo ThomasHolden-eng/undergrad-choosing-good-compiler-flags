@@ -2,7 +2,6 @@ package main
 
 import (
 	"6CCS3PRJ/thomasholden/testharness"
-	"os"
 	"time"
 )
 
@@ -12,10 +11,10 @@ type Result struct {
 }
 
 type WorkerPool struct {
-	passSeq    chan []int
-	fileNum    chan int
-	Results    chan Result
-	SourceFile *os.File
+	passSeq   chan []int
+	fileNum   chan int
+	Results   chan Result
+	SourceCmd []string
 }
 
 const (
@@ -25,7 +24,7 @@ const (
 	EXECUTION_WEIGHT    float32 = 0.7
 )
 
-func NewWorkerPool(file string, workers, numJobs int) *WorkerPool {
+func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
 	pool := new(WorkerPool)
 
 	pool.passSeq = make(chan []int, numJobs)
@@ -36,11 +35,7 @@ func NewWorkerPool(file string, workers, numJobs int) *WorkerPool {
 		pool.fileNum <- i
 	}
 
-	sourceFile, err := os.Open(file)
-	if err != nil {
-		return nil
-	}
-	pool.SourceFile = sourceFile
+	pool.SourceCmd = sourceCmd
 
 	return pool
 }
@@ -58,7 +53,7 @@ func (p WorkerPool) StartPool() {
 func (p WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 
-	compilation_t, binary_size, newFile, _ := testharness.CompileFileWithPasses(p.SourceFile, seq, diff)
+	compilation_t, binary_size, newFile, _ := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
 	execution_t, memory_usage, _ := testharness.RunFile(newFile, diff)
 
 	heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
