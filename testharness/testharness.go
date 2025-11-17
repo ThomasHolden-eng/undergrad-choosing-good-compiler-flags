@@ -12,6 +12,8 @@ type Harness struct {
 	flagIntMap BidirectionalMap[string, int]
 }
 
+r, _ := regexp.Compile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
+
 func extractUserTime(timeOut string) (float32, error) {
 	if timeOut == "" {
 		return 0.0, fmt.Errorf("received no input")
@@ -37,21 +39,19 @@ func extractInputFiles(cmd []string) []string {
 		return nil
 	}
 
-	r, _ := regexp.Compile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
+	temporarySlice := slices.Clone(cmd)
 
-	returnS := slices.DeleteFunc(cmd, func(s string) bool {
+	returnS := slices.DeleteFunc(temporarySlice, func(s string) bool {
 		return !r.MatchString(s)
 	})
 
 	return returnS
 }
 
-func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
+func mapInputFilesToBC(cmd []string, bcFiles []string) {
 	if len(cmd) == 0 {
 		return nil
 	}
-
-	r, _ := regexp.Compile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
 
 	filePtr := 0
 	for i, s := range cmd {
@@ -60,8 +60,6 @@ func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
 			filePtr++
 		}
 	}
-
-	return cmd
 }
 
 func cleanFiles(files []string) {
