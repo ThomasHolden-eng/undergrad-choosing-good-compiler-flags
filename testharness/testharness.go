@@ -12,15 +12,21 @@ type Harness struct {
 	flagIntMap BidirectionalMap[string, int]
 }
 
-r, _ := regexp.Compile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
+var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
+var userFloatRegex *regexp.Regexp = regexp.MustCompile(`user ([0-9]+\.[0-9]+)`)
 
 func extractUserTime(timeOut string) (float32, error) {
 	if timeOut == "" {
 		return 0.0, fmt.Errorf("received no input")
 	}
 
-	r, _ := regexp.Compile(`user ([0-9]+\.[0-9]+)`)
-	userTimeLine := r.FindStringSubmatch(timeOut)[1]
+	matches := userFloatRegex.FindStringSubmatch(timeOut)[1]
+
+	if len(matches) < 2 {
+		return 0.0, fmt.Errorf("no user time found in input")
+	}
+
+	userTimeLine := matches[1]
 
 	float, err := strconv.ParseFloat(userTimeLine, 32)
 	return float32(float), err
@@ -42,20 +48,16 @@ func extractInputFiles(cmd []string) []string {
 	temporarySlice := slices.Clone(cmd)
 
 	returnS := slices.DeleteFunc(temporarySlice, func(s string) bool {
-		return !r.MatchString(s)
+		return !cFileRegex.MatchString(s)
 	})
 
 	return returnS
 }
 
 func mapInputFilesToBC(cmd []string, bcFiles []string) {
-	if len(cmd) == 0 {
-		return nil
-	}
-
 	filePtr := 0
 	for i, s := range cmd {
-		if r.MatchString(s) {
+		if cFileRegex.MatchString(s) {
 			cmd[i] = bcFiles[filePtr]
 			filePtr++
 		}
