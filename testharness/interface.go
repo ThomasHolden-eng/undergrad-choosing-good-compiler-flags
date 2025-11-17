@@ -33,26 +33,72 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 	var stderr bytes.Buffer
 
-	command := []string{"/usr/bin/time", "-p"}
-	command, compilationCommand = append(command, compilationCommand[0]), compilationCommand[1:]
-	command = append(command, []string{"-mllvm", "-passes=" + strings.Join(passStrings, ",")}...)
-	command = append(command, compilationCommand...)
-	command = append(command, "-o", binName)
+	filesToOptimise := extractInputFiles(compilationCommand)
 
-	fmt.Printf("%v\n", command)
+	var intermediaryFiles []string
+	for range filesToOptimise {
+		bcFile, err := os.CreateTemp("", fmt.Sprintf("opt-%d-*.bc", id))
+		if err != nil {
+			return 0, 0, nil, fmt.Errorf("failed to create temporary file: %w", err)
+		}
+		intermediaryFiles = append(intermediaryFiles, bcFile.Name())
+		bcFile.Close()
+	}
+	defer cleanFiles(intermediaryFiles)
 
-	cmd := exec.Command(command[0], command[1:]...)
+	for i := range filesToOptimise {
+		stderr.Reset()
+		inpFile, outFile := filesToOptimise[i], intermediaryFiles[i]
+
+		command := []string{}
+		command = append(command, compilationCommand[0], inpFile)
+		command = append(command, []string{"-emit-llvm", "-Xclang", "-disable-llvm-passes", "-Xclang", "-disable-llvm-optzns"}...)
+		command = append(command, "-o", outFile)
+
+		cmd := exec.Command(command[0], command[1:]...)
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			os.Remove(binName)
+			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
+		}
+	}
+
+	combinedPasses := strings.Join(passStrings, ",")
+	var totalDuration float32
+	for i := range intermediaryFiles {
+		stderr.Reset()
+		inpFile, outFile := intermediaryFiles[i], intermediaryFiles[i]
+
+		command := []string{"/usr/bin/time", "-p",
+			"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
+
+		cmd := exec.Command(command[0], command[1:]...)
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			os.Remove(binName)
+			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
+		}
+
+		duration, err := extractUserTime(stderr.String())
+		if err != nil {
+			os.Remove(binName)
+			return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
+		}
+		totalDuration += duration
+	}
+
+	compilationCommand = mapInputFilesToBC(compilationCommand, intermediaryFiles)
+
+	compilationCommand = append(compilationCommand, "-o", binName)
+
+	cmd := exec.Command(compilationCommand[0], compilationCommand[1:]...)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		os.Remove(binName)
 		return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
-	}
-
-	duration, err := extractUserTime(stderr.String())
-	if err != nil {
-		os.Remove(binName)
-		return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
 	}
 
 	binFile, err = os.Open(binName)
@@ -68,7 +114,7 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 		return 0, 0, nil, fmt.Errorf("failed to size binary '%s': %w", binName, err)
 	}
 
-	totalTime := time.Duration(duration * float32(time.Second))
+	totalTime := time.Duration(totalDuration * float32(time.Second))
 	return totalTime, binSize, binFile, nil
 }
 
