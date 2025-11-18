@@ -20,7 +20,7 @@ func extractUserTime(timeOut string) (float32, error) {
 		return 0.0, fmt.Errorf("received no input")
 	}
 
-	matches := userFloatRegex.FindStringSubmatch(timeOut)[1]
+	matches := userFloatRegex.FindStringSubmatch(timeOut)
 
 	if len(matches) < 2 {
 		return 0.0, fmt.Errorf("no user time found in input")
