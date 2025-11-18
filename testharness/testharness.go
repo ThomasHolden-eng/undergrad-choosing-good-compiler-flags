@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"strconv"
 )
 
 type Harness struct {
@@ -13,24 +12,6 @@ type Harness struct {
 }
 
 var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
-var userFloatRegex *regexp.Regexp = regexp.MustCompile(`user ([0-9]+\.[0-9]+)`)
-
-func extractUserTime(timeOut string) (float32, error) {
-	if timeOut == "" {
-		return 0.0, fmt.Errorf("received no input")
-	}
-
-	matches := userFloatRegex.FindStringSubmatch(timeOut)
-
-	if len(matches) < 2 {
-		return 0.0, fmt.Errorf("no user time found in input")
-	}
-
-	userTimeLine := matches[1]
-
-	float, err := strconv.ParseFloat(userTimeLine, 32)
-	return float32(float), err
-}
 
 func getFileSize(file *os.File) (int, error) {
 	stat, err := file.Stat()

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -52,8 +53,10 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 		command := []string{}
 		command = append(command, compilationCommand[0], inpFile)
-		command = append(command, []string{"-emit-llvm", "-Xclang", "-disable-llvm-passes", "-Xclang", "-disable-llvm-optzns"}...)
+		command = append(command, []string{"-emit-llvm", "-Xclang", "-disable-llvm-passes", "-Xclang", "-disable-llvm-optzns", "-c"}...)
 		command = append(command, "-o", outFile)
+
+		// fmt.Printf("%v\n", command)
 
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = &stderr
@@ -62,16 +65,18 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 			os.Remove(binName)
 			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
 		}
+		// fmt.Printf("Success")
 	}
 
 	combinedPasses := strings.Join(passStrings, ",")
-	var totalDuration float32
+	var totalDuration int64
 	for i := range intermediaryFiles {
 		stderr.Reset()
 		inpFile, outFile := intermediaryFiles[i], intermediaryFiles[i]
 
-		command := []string{"/usr/bin/time", "-p",
-			"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
+		command := []string{"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
+
+		// fmt.Printf("%v\n", command)
 
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = &stderr
@@ -81,17 +86,25 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
 		}
 
-		duration, err := extractUserTime(stderr.String())
-		if err != nil {
-			os.Remove(binName)
-			return 0, 0, nil, fmt.Errorf("failed to extract time from: %s", stderr.String())
-		}
+		duration := cmd.ProcessState.UserTime().Microseconds()
+
+		// memUsage := func() int64 {
+		// 	if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
+		// 		return usage.Maxrss
+		// 	}
+		// 	return 0
+		// }()
+
+		// fmt.Printf("Success")
+
 		totalDuration += duration
 	}
 
 	mapInputFilesToBC(compilationCommand, intermediaryFiles)
 
 	compilationCommand = append(compilationCommand, "-o", binName)
+
+	// fmt.Printf("%v\n", compilationCommand)
 
 	cmd := exec.Command(compilationCommand[0], compilationCommand[1:]...)
 	cmd.Stderr = &stderr
@@ -114,14 +127,35 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 		return 0, 0, nil, fmt.Errorf("failed to size binary '%s': %w", binName, err)
 	}
 
-	totalTime := time.Duration(totalDuration * float32(time.Second))
+	totalTime := time.Duration(totalDuration * int64(time.Microsecond))
 	return totalTime, binSize, binFile, nil
 }
 
-// Takes a file reference and unique id
+// Takes a file reference
 // Returns execution time, memory usage & error
-func RunFile(file *os.File, id int) (time.Duration, int, error) {
-	return 0, 0, nil
+func RunFile(file *os.File) (time.Duration, int64, error) {
+	var stderr bytes.Buffer
+
+	file.Chmod(0755)
+	cmd := exec.Command(file.Name())
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return 0, 0, fmt.Errorf("execution failed: %w\nStderr: %s", err, stderr.String())
+	}
+
+	duration := cmd.ProcessState.UserTime().Microseconds()
+
+	// Will fail within windows
+	memUsage := func() int64 {
+		if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
+			return usage.Maxrss
+		}
+		return 0
+	}()
+
+	totalTime := time.Duration(duration * int64(time.Microsecond))
+	return totalTime, memUsage, nil
 }
 
 func FlagToInt(s string) int {

@@ -54,7 +54,7 @@ func (p WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 
 	compilation_t, binary_size, newFile, _ := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
-	execution_t, memory_usage, _ := testharness.RunFile(newFile, diff)
+	execution_t, memory_usage, _ := testharness.RunFile(newFile)
 
 	heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
 
@@ -64,7 +64,7 @@ func (p WorkerPool) runJob(seq []int, diff int) {
 	}
 }
 
-func valueFromJobStats(compilation, execution time.Duration, size, memory int) float32 {
+func valueFromJobStats(compilation, execution time.Duration, size int, memory int64) float32 {
 	return (COMPILATION_WEIGHT*float32(compilation) +
 		EXECUTION_WEIGHT*float32(execution) +
 		BINARY_SIZE_WEIGHT*float32(size) +

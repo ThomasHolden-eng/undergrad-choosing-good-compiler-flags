@@ -24,16 +24,25 @@ func main() {
 		return
 	}
 
-	t, s, f, err := testharness.CompileFileWithPasses(commandSplit, []int{}, 0)
-	if f != nil {
-		f.Close()
-		defer os.Remove(f.Name())
-	}
-
+	compileT, size, file, err := testharness.CompileFileWithPasses(commandSplit, []int{}, 0)
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
-		return
+		fmt.Printf("compilation error: %v\n", err)
 	}
-	fmt.Printf("Time Taken: %v\n", t)
-	fmt.Printf("Size in Bytes: %v\n", s)
+	if file != nil {
+		fmt.Println("Compiled!")
+		fmt.Printf("Time Taken: %v\n", compileT)
+		fmt.Printf("Size in Bytes: %v\n", size)
+
+		defer os.Remove(file.Name())
+
+		executionT, memoryUsage, err := testharness.RunFile(file)
+		file.Close()
+		if err != nil {
+			fmt.Printf("execution error: %v\n", err)
+		} else {
+			fmt.Println("Executed!")
+			fmt.Printf("Time Taken: %v\n", executionT)
+			fmt.Printf("Size in Bytes: %v\n", memoryUsage)
+		}
+	}
 }
