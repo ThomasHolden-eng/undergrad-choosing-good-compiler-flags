@@ -69,7 +69,7 @@ type Number interface {
 }
 
 func Median[T Number](list []T) *T {
-	slices.SortFunc(list, func(a, b T) int { return int(a - b) })
+	slices.Sort(list)
 
 	length := len(list)
 	if length == 0 {
