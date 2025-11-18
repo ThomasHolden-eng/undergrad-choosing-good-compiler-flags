@@ -1,7 +1,6 @@
 package main
 
 import (
-	"6CCS3PRJ/thomasholden/testharness"
 	"bufio"
 	"fmt"
 	"os"
@@ -24,25 +23,9 @@ func main() {
 		return
 	}
 
-	compileT, size, file, err := testharness.CompileFileWithPasses(commandSplit, []int{}, 0)
-	if err != nil {
-		fmt.Printf("compilation error: %v\n", err)
-	}
-	if file != nil {
-		fmt.Println("Compiled!")
-		fmt.Printf("Time Taken: %v\n", compileT)
-		fmt.Printf("Size in Bytes: %v\n", size)
+	pool := NewWorkerPool(commandSplit, 1, 1)
+	pool.AddPassSequence([]int{})
+	results := pool.StartPool()
 
-		defer os.Remove(file.Name())
-
-		executionT, memoryUsage, err := testharness.RunFile(file)
-		file.Close()
-		if err != nil {
-			fmt.Printf("execution error: %v\n", err)
-		} else {
-			fmt.Println("Executed!")
-			fmt.Printf("Time Taken: %v\n", executionT)
-			fmt.Printf("Size in Bytes: %v\n", memoryUsage)
-		}
-	}
+	fmt.Printf("%v\n", results)
 }

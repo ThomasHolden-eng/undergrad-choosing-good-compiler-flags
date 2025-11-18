@@ -2,6 +2,7 @@ package main
 
 import (
 	"6CCS3PRJ/thomasholden/testharness"
+	"os"
 	"time"
 )
 
@@ -18,10 +19,10 @@ type WorkerPool struct {
 }
 
 const (
-	COMPILATION_WEIGHT  float32 = 0.1
-	MEMORY_USAGE_WEIGHT float32 = 0.1
-	BINARY_SIZE_WEIGHT  float32 = 0.1
-	EXECUTION_WEIGHT    float32 = 0.7
+	COMPILATION_WEIGHT  float32 = 0.019
+	MEMORY_USAGE_WEIGHT float32 = 0.0005
+	BINARY_SIZE_WEIGHT  float32 = 0.0005
+	EXECUTION_WEIGHT    float32 = 0.98
 )
 
 func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
@@ -44,17 +45,29 @@ func (p WorkerPool) AddPassSequence(seq []int) {
 	p.passSeq <- seq
 }
 
-func (p WorkerPool) StartPool() {
-	for {
+func (p WorkerPool) StartPool() []Result {
+	for len(p.Results) != cap(p.Results) {
 		go p.runJob(<-p.passSeq, <-p.fileNum)
 	}
+
+	return testharness.ArrayFromChannel(p.Results)
 }
 
 func (p WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 
-	compilation_t, binary_size, newFile, _ := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
-	execution_t, memory_usage, _ := testharness.RunFile(newFile)
+	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
+	if err != nil {
+		panic(err)
+	}
+	defer os.Remove(newFile.Name())
+
+	execution_t, memory_usage, err := testharness.RunFile(newFile)
+	if err != nil {
+		panic(err)
+	}
+
+	newFile.Close()
 
 	heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
 

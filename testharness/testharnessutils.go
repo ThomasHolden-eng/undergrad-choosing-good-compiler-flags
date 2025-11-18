@@ -50,3 +50,11 @@ func cleanFiles(files []string) {
 		os.Remove(file)
 	}
 }
+
+func ArrayFromChannel[T any](channel chan T) []T {
+	sliceT := make([]T, len(channel))
+	for elem := range channel {
+		sliceT = append(sliceT, elem)
+	}
+	return sliceT
+}
