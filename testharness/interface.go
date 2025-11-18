@@ -33,9 +33,7 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 	var stderr bytes.Buffer
 
-	filesToOptimise := make([]string, 0, len(compilationCommand))
-	copy(filesToOptimise, compilationCommand)
-	filesToOptimise = extractInputFiles(filesToOptimise)
+	filesToOptimise := extractInputFiles(compilationCommand)
 
 	var intermediaryFiles []string
 	for range filesToOptimise {
