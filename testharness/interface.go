@@ -88,25 +88,16 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 		duration := cmd.ProcessState.UserTime().Microseconds()
 
-		// memUsage := func() int64 {
-		// 	if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-		// 		return usage.Maxrss
-		// 	}
-		// 	return 0
-		// }()
-
-		// fmt.Printf("Success")
-
 		totalDuration += duration
 	}
 
-	mapInputFilesToBC(compilationCommand, intermediaryFiles)
+	newCommand := mapInputFilesToBC(compilationCommand, intermediaryFiles)
 
-	compilationCommand = append(compilationCommand, "-o", binName)
+	newCommand = append(newCommand, "-o", binName)
 
 	// fmt.Printf("%v\n", compilationCommand)
 
-	cmd := exec.Command(compilationCommand[0], compilationCommand[1:]...)
+	cmd := exec.Command(newCommand[0], newCommand[1:]...)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -148,8 +139,8 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 
 	// Will fail within windows
 	memUsage := func() int64 {
-		if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-			return usage.Maxrss
+		if _, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
+			// return usage.Maxrss
 		}
 		return 0
 	}()

@@ -35,14 +35,18 @@ func extractInputFiles(cmd []string) []string {
 	return returnS
 }
 
-func mapInputFilesToBC(cmd []string, bcFiles []string) {
+func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
 	filePtr := 0
-	for i, s := range cmd {
+	temporarySlice := slices.Clone(cmd)
+
+	for i, s := range temporarySlice {
 		if cFileRegex.MatchString(s) {
-			cmd[i] = bcFiles[filePtr]
+			temporarySlice[i] = bcFiles[filePtr]
 			filePtr++
 		}
 	}
+
+	return temporarySlice
 }
 
 func cleanFiles(files []string) {
@@ -52,9 +56,28 @@ func cleanFiles(files []string) {
 }
 
 func ArrayFromChannel[T any](channel chan T) []T {
-	sliceT := make([]T, len(channel))
+	sliceT := make([]T, 0, len(channel))
 	for elem := range channel {
 		sliceT = append(sliceT, elem)
 	}
 	return sliceT
+}
+
+type Number interface {
+	int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 |
+		uint32 | uint64 | uintptr | float32 | float64
+}
+
+func Median[T Number](list []T) *T {
+	slices.SortFunc(list, func(a, b T) int { return int(a - b) })
+
+	length := len(list)
+	if length == 0 {
+		return nil
+	} else if length%2 == 0 {
+		val := (list[length/2] + list[-1+length/2]) / 2
+		return &val
+	} else {
+		return &list[length/2]
+	}
 }
