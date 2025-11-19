@@ -2,9 +2,10 @@ package main
 
 import (
 	"6CCS3PRJ/thomasholden/testharness"
-	//"fmt"
+
 	"os"
 	"sync"
+
 	"time"
 )
 
@@ -21,10 +22,13 @@ type WorkerPool struct {
 }
 
 const (
-	COMPILATION_WEIGHT  float32 = 0.0001
-	MEMORY_USAGE_WEIGHT float32 = 0.005
-	BINARY_SIZE_WEIGHT  float32 = 0.0001
-	EXECUTION_WEIGHT    float32 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
+	COMPILATION_WEIGHT  float32       = 0.0001
+	MEMORY_USAGE_WEIGHT float32       = 0.005
+	BINARY_SIZE_WEIGHT  float32       = 0.0001
+	EXECUTION_WEIGHT    float32       = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
+	EXECUTION_CYCLES    int           = 25
+	MAX_DURATION        time.Duration = time.Hour * 292
+	MAX_INT64           int64         = 9223372036854775807
 )
 
 func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
@@ -63,25 +67,35 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 	var scores []float32
 
-	for begin := time.Now(); time.Since(begin) < 10*time.Second; {
-		compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
-		if err != nil {
-			panic(err)
+	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
+	if err != nil {
+		panic(err)
+	}
+	defer os.Remove(newFile.Name())
+
+	var execution_min time.Duration
+	var memory_min int64
+	for begin := time.Now(); time.Since(begin) < 15*time.Second; {
+		execution_min = MAX_DURATION
+		memory_min = MAX_INT64
+		for range EXECUTION_CYCLES {
+			execution_t, memory_usage, err := testharness.RunFile(newFile)
+			if err != nil {
+				panic(err)
+			}
+			if execution_t < execution_min && execution_t != 0 {
+				execution_min = execution_t
+			}
+			if memory_usage < memory_min && memory_usage != 0 {
+				memory_min = memory_usage
+			}
 		}
-		defer os.Remove(newFile.Name())
 
-		execution_t, memory_usage, err := testharness.RunFile(newFile)
-		if err != nil {
-			panic(err)
-		}
-
-		newFile.Close()
-
-		heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
-		// fmt.Printf("compilation_t: %v\nexecution_t: %v\nbinary_size: %v\nmemory_usage: %v\n", compilation_t, execution_t, binary_size, memory_usage)
+		heuristic := valueFromJobStats(compilation_t, execution_min, binary_size, memory_min)
 
 		scores = append(scores, heuristic)
 	}
+	newFile.Close()
 
 	p.Results <- Result{
 		score:   *testharness.Median(scores),
