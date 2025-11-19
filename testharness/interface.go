@@ -47,13 +47,16 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 	}
 	defer cleanFiles(intermediaryFiles)
 
+	flags := extractFlags(compilationCommand)
 	for i := range filesToOptimise {
 		stderr.Reset()
 		inpFile, outFile := filesToOptimise[i], intermediaryFiles[i]
 
-		command := []string{}
-		command = append(command, compilationCommand[0], inpFile)
-		command = append(command, []string{"-emit-llvm", "-Xclang", "-disable-llvm-passes", "-Xclang", "-disable-llvm-optzns", "-c"}...)
+		command := []string{
+			compilationCommand[0], inpFile, "-emit-llvm", "-Xclang", "-disable-llvm-passes",
+			"-Xclang", "-disable-llvm-optzns", "-Xclang", "-disable-O0-optnone", "-c",
+		}
+		command = append(command, flags...)
 		command = append(command, "-o", outFile)
 
 		// fmt.Printf("%v\n", command)
@@ -83,7 +86,7 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 		if err := cmd.Run(); err != nil {
 			os.Remove(binName)
-			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
+			return 0, 0, nil, fmt.Errorf("optimisation failed: %w\nStderr: %s", err, stderr.String())
 		}
 
 		duration := cmd.ProcessState.UserTime().Microseconds()
@@ -102,7 +105,7 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 	if err := cmd.Run(); err != nil {
 		os.Remove(binName)
-		return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
+		return 0, 0, nil, fmt.Errorf("linking failed: %w\nStderr: %s", err, stderr.String())
 	}
 
 	binFile, err = os.Open(binName)
@@ -139,8 +142,8 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 
 	// Will fail within windows
 	memUsage := func() int64 {
-		if _, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-			// return usage.Maxrss
+		if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
+			return usage.Maxrss
 		}
 		return 0
 	}()

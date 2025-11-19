@@ -35,6 +35,20 @@ func extractInputFiles(cmd []string) []string {
 	return returnS
 }
 
+func extractFlags(cmd []string) []string {
+	if len(cmd) == 0 {
+		return nil
+	}
+
+	temporarySlice := slices.Clone(cmd[1:])
+
+	returnS := slices.DeleteFunc(temporarySlice, func(s string) bool {
+		return cFileRegex.MatchString(s)
+	})
+
+	return returnS
+}
+
 func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
 	filePtr := 0
 	temporarySlice := slices.Clone(cmd)
