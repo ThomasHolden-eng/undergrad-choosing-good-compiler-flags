@@ -59,14 +59,12 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 		command = append(command, flags...)
 		command = append(command, "-o", outFile)
 
-		// fmt.Printf("%v\n", command)
-
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = &stderr
 
 		if err := cmd.Run(); err != nil {
 			os.Remove(binName)
-			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nStderr: %s", err, stderr.String())
+			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nCommand: %v\nStderr: %s", err, command, stderr.String())
 		}
 		// fmt.Printf("Success")
 	}
@@ -79,14 +77,12 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (t
 
 		command := []string{"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
 
-		// fmt.Printf("%v\n", command)
-
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = &stderr
 
 		if err := cmd.Run(); err != nil {
 			os.Remove(binName)
-			return 0, 0, nil, fmt.Errorf("optimisation failed: %w\nStderr: %s", err, stderr.String())
+			return 0, 0, nil, fmt.Errorf("optimisation failed: %w\nCommand: %v\nStderr: %s", err, command, stderr.String())
 		}
 
 		duration := cmd.ProcessState.UserTime().Microseconds()
