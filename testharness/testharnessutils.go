@@ -11,7 +11,7 @@ type Harness struct {
 	flagIntMap BidirectionalMap[string, int]
 }
 
-var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.(?:(?:cpp)|(?:cxx)|(?:cc)|(?:h))`)
+var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
 
 func getFileSize(file *os.File) (int, error) {
 	stat, err := file.Stat()
