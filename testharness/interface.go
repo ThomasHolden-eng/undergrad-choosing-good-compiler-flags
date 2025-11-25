@@ -15,14 +15,14 @@ import (
 // Returns compilation time, binary size, file reference & error
 //
 // Caller must resolve returned executable reference (close and delete)
-func CompileFileWithPasses(compilationCommand []string, passes []int, id int) (time.Duration, int, *os.File, error) {
+func CompileFileWithPasses(compilationCommand []string, passes []int, id int, intPassF func(int) string) (time.Duration, int, *os.File, error) {
 	if len(compilationCommand) == 0 {
 		return 0, 0, nil, fmt.Errorf("empty command passed")
 	}
 
 	passStrings := make([]string, len(passes))
 	for i, pass := range passes {
-		passStrings[i] = IntToFlag(pass)
+		passStrings[i] = intPassF(pass)
 	}
 
 	binFile, err := os.CreateTemp("", fmt.Sprintf("bin-%d-*", id))
@@ -146,12 +146,4 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 
 	totalTime := time.Duration(duration * int64(time.Microsecond))
 	return totalTime, memUsage, nil
-}
-
-func FlagToInt(s string) int {
-	return 0
-}
-
-func IntToFlag(n int) string {
-	return ""
 }

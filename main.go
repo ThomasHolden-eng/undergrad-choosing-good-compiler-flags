@@ -1,6 +1,8 @@
 package main
 
 import (
+	"6CCS3PRJ/thomasholden/geneticalgorithm"
+
 	"bufio"
 	"fmt"
 	"os"
@@ -23,8 +25,7 @@ func main() {
 		return
 	}
 
-	pool := NewWorkerPool(commandSplit, 1, 1)
-	pool.AddPassSequence([]int{})
+	pool := geneticalgorithm.NewWorkerPool(commandSplit, 1, 1)
 	results := pool.StartPool()
 
 	fmt.Printf("%v\n", results)

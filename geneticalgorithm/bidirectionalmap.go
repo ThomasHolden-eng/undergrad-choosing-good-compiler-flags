@@ -1,4 +1,4 @@
-package testharness
+package geneticalgorithm
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func (b *BidirectionalMap[K, V]) Put(key K, value V) error {
 	return nil
 }
 
-func (b *BidirectionalMap[K, V]) Putinverse(key V, value K) error {
+func (b *BidirectionalMap[K, V]) PutInverse(key V, value K) error {
 	if existingValue, ok := b.direct[value]; ok {
 		return fmt.Errorf("value %v already bound to key: %v", key, existingValue)
 	}

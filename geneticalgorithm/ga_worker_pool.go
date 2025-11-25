@@ -1,7 +1,8 @@
-package main
+package geneticalgorithm
 
 import (
 	"6CCS3PRJ/thomasholden/testharness"
+	"6CCS3PRJ/thomasholden/util"
 
 	"os"
 	"sync"
@@ -18,6 +19,7 @@ type WorkerPool struct {
 	fileNum   chan int
 	Results   chan Result
 	SourceCmd []string
+	passMan   *PassManager // Should be moved to GA
 }
 
 const (
@@ -35,13 +37,15 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
 
 	pool.passSeq = make([][]int, 0, numJobs)
 	pool.fileNum = make(chan int, workers)
-	pool.Results = make(chan Result, numJobs)
 
 	for i := 0; i < workers; i++ {
 		pool.fileNum <- i
 	}
 
 	pool.SourceCmd = sourceCmd
+
+	pool.passMan = NewPassManager()
+	pool.AddPassSequence(pool.passMan.Get03Int())
 
 	return pool
 }
@@ -52,6 +56,7 @@ func (p *WorkerPool) AddPassSequence(seq []int) {
 
 func (p *WorkerPool) StartPool() []Result {
 	var wg sync.WaitGroup
+	p.Results = make(chan Result, len(p.passSeq))
 
 	for _, seq := range p.passSeq {
 		wg.Go(func() { p.runJob(seq, <-p.fileNum) })
@@ -59,14 +64,14 @@ func (p *WorkerPool) StartPool() []Result {
 
 	wg.Wait()
 	close(p.Results)
-	return testharness.ArrayFromChannel(p.Results)
+	return util.ArrayFromChannel(p.Results)
 }
 
 func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 	var scores []float32
 
-	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff)
+	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff, p.passMan.IntToPass)
 	if err != nil {
 		panic(err)
 	}
@@ -97,7 +102,7 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	newFile.Close()
 
 	p.Results <- Result{
-		score:   *testharness.Median(scores),
+		score:   *util.Median(scores),
 		passSeq: seq,
 	}
 }
