@@ -1,6 +1,8 @@
 package geneticalgorithm
 
-import "6CCS3PRJ/thomasholden/util"
+import (
+	"6CCS3PRJ/thomasholden/util"
+)
 
 type PassManager struct {
 	BidirectionalMap[string, int]
@@ -16,13 +18,17 @@ func NewPassManager() *PassManager {
 
 func (pm *PassManager) loadPasses() {
 	passList := getPasses()
-	passList = append(passList, get03String()...)
+	passList = append(passList, getO3String()...)
 	pm.init()
-	pm.MaxPass = len(passList) - 1
 
-	for i, pass := range passList {
-		pm.Put(pass, i)
+	assignments := 0
+	for _, pass := range passList {
+		if _, ok := pm.direct[pass]; !ok {
+			pm.Put(pass, assignments)
+			assignments++
+		}
 	}
+	pm.MaxPass = assignments
 }
 
 // Passes extracted from
@@ -144,7 +150,6 @@ func getPasses() []string {
 		"fix-irreducible",
 		"flatten-cfg",
 		"float2int",
-		"free-machine-function",
 		"gc-lowering",
 		"guard-widening",
 		"gvn-hoist",
@@ -238,7 +243,7 @@ func getPasses() []string {
 	}
 }
 
-func get03String() []string {
+func getO3String() []string {
 	return []string{
 		"annotation2metadata",
 		"forceattrs",
@@ -322,8 +327,8 @@ func get03String() []string {
 	}
 }
 
-func (pm *PassManager) Get03Int() []int {
-	return util.ForEach(get03String(), pm.PassToInt)
+func (pm *PassManager) GetO3Int() []int {
+	return util.ForEach(getO3String(), pm.PassToInt)
 }
 
 func (pm *PassManager) PassToInt(s string) int {

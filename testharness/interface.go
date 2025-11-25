@@ -15,7 +15,7 @@ import (
 // Returns compilation time, binary size, file reference & error
 //
 // Caller must resolve returned executable reference (close and delete)
-func CompileFileWithPasses(compilationCommand []string, passes []int, id int, intPassF func(int) string) (time.Duration, int, *os.File, error) {
+func CompileFileWithPasses(compilationCommand []string, passes []int, id int, intPassF func(int) string, outLocal bool) (time.Duration, int, *os.File, error) {
 	if len(compilationCommand) == 0 {
 		return 0, 0, nil, fmt.Errorf("empty command passed")
 	}
@@ -66,7 +66,6 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int, in
 			os.Remove(binName)
 			return 0, 0, nil, fmt.Errorf("compilation failed: %w\nCommand: %v\nStderr: %s", err, command, stderr.String())
 		}
-		// fmt.Printf("Success")
 	}
 
 	combinedPasses := strings.Join(passStrings, ",")
@@ -75,6 +74,7 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int, in
 		stderr.Reset()
 		inpFile, outFile := intermediaryFiles[i], intermediaryFiles[i]
 
+		// Add O3 here to run backend optimisations, otherwise we optimise only IR
 		command := []string{"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
 
 		cmd := exec.Command(command[0], command[1:]...)
@@ -92,9 +92,10 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int, in
 
 	newCommand := mapInputFilesToBC(compilationCommand, intermediaryFiles)
 
-	newCommand = append(newCommand, "-o", binName)
-
-	// fmt.Printf("%v\n", compilationCommand)
+	newCommand = append(newCommand, "-O3")
+	if !outLocal {
+		newCommand = append(newCommand, "-o", binName)
+	}
 
 	cmd := exec.Command(newCommand[0], newCommand[1:]...)
 	cmd.Stderr = &stderr

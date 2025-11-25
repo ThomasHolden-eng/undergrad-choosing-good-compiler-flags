@@ -19,20 +19,18 @@ type WorkerPool struct {
 	fileNum   chan int
 	Results   chan Result
 	SourceCmd []string
-	passMan   *PassManager // Should be moved to GA
+	passMan   *PassManager
 }
 
 const (
-	COMPILATION_WEIGHT  float32       = 0.0001
-	MEMORY_USAGE_WEIGHT float32       = 0.005
-	BINARY_SIZE_WEIGHT  float32       = 0.0001
-	EXECUTION_WEIGHT    float32       = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
-	EXECUTION_CYCLES    int           = 25
-	MAX_DURATION        time.Duration = time.Hour * 292
-	MAX_INT64           int64         = 9223372036854775807
+	COMPILATION_WEIGHT  float32 = 0.0001
+	MEMORY_USAGE_WEIGHT float32 = 0.005
+	BINARY_SIZE_WEIGHT  float32 = 0.0001
+	EXECUTION_WEIGHT    float32 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
+	EXECUTION_CYCLES    int     = 5
 )
 
-func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
+func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager) *WorkerPool {
 	pool := new(WorkerPool)
 
 	pool.passSeq = make([][]int, 0, numJobs)
@@ -44,8 +42,7 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int) *WorkerPool {
 
 	pool.SourceCmd = sourceCmd
 
-	pool.passMan = NewPassManager()
-	pool.AddPassSequence(pool.passMan.Get03Int())
+	pool.passMan = passManager
 
 	return pool
 }
@@ -71,21 +68,25 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 	var scores []float32
 
-	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff, p.passMan.IntToPass)
+	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff, p.passMan.IntToPass, false)
 	if err != nil {
-		panic(err)
+		p.Results <- Result{
+			score:   util.MAX_FLOAT32,
+			passSeq: seq,
+		}
+		return
 	}
 	defer os.Remove(newFile.Name())
 
 	var execution_min time.Duration
 	var memory_min int64
-	for begin := time.Now(); time.Since(begin) < 15*time.Second; {
-		execution_min = MAX_DURATION
-		memory_min = MAX_INT64
+	for begin := time.Now(); time.Since(begin) < 1*time.Second; {
+		execution_min = util.MAX_DURATION
+		memory_min = util.MAX_INT64
 		for range EXECUTION_CYCLES {
 			execution_t, memory_usage, err := testharness.RunFile(newFile)
 			if err != nil {
-				panic(err)
+				break
 			}
 			if execution_t < execution_min && execution_t != 0 {
 				execution_min = execution_t
@@ -102,7 +103,7 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	newFile.Close()
 
 	p.Results <- Result{
-		score:   *util.Median(scores),
+		score:   float32(*util.Median(scores)),
 		passSeq: seq,
 	}
 }

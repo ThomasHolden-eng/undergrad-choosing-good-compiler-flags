@@ -6,8 +6,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-
-	"github.com/google/shlex"
 )
 
 func main() {
@@ -19,14 +17,13 @@ func main() {
 		return
 	}
 
-	commandSplit, err := shlex.Split(commandText)
+	gaPopulation, err := geneticalgorithm.CreatePopulation(30, 250, commandText)
 	if err != nil {
-		fmt.Printf("text lex error: %v\n", err)
+		fmt.Printf("ga error: %v\n", err)
 		return
 	}
+	gaPopulation.RunNGenerations(10)
 
-	pool := geneticalgorithm.NewWorkerPool(commandSplit, 1, 1)
-	results := pool.StartPool()
-
-	fmt.Printf("%v\n", results)
+	seq, val := gaPopulation.Best()
+	fmt.Printf("%v %f\n", seq, val)
 }
