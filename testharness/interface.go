@@ -15,14 +15,9 @@ import (
 // Returns compilation time, binary size, file reference & error
 //
 // Caller must resolve returned executable reference (close and delete)
-func CompileFileWithPasses(compilationCommand []string, passes []int, id int, intPassF func(int) string, outLocal bool) (time.Duration, int, *os.File, error) {
+func CompileFileWithPasses(compilationCommand []string, passes []string, id int, outLocal bool) (time.Duration, int, *os.File, error) {
 	if len(compilationCommand) == 0 {
 		return 0, 0, nil, fmt.Errorf("empty command passed")
-	}
-
-	passStrings := make([]string, len(passes))
-	for i, pass := range passes {
-		passStrings[i] = intPassF(pass)
 	}
 
 	binFile, err := os.CreateTemp("", fmt.Sprintf("bin-%d-*", id))
@@ -52,8 +47,11 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int, in
 		stderr.Reset()
 		inpFile, outFile := filesToOptimise[i], intermediaryFiles[i]
 
+		// here we add -O3, despite disabling running passes in this step
+		// this provided essential target library info to the IR, allowing us to optimise
+		// without being at a disadvantage to a simple clang -O3 command
 		command := []string{
-			compilationCommand[0], inpFile, "-emit-llvm", "-Xclang", "-disable-llvm-passes",
+			compilationCommand[0], inpFile, "-O3", "-emit-llvm", "-Xclang", "-disable-llvm-passes",
 			"-Xclang", "-disable-llvm-optzns", "-Xclang", "-disable-O0-optnone", "-c",
 		}
 		command = append(command, flags...)
@@ -68,13 +66,12 @@ func CompileFileWithPasses(compilationCommand []string, passes []int, id int, in
 		}
 	}
 
-	combinedPasses := strings.Join(passStrings, ",")
+	combinedPasses := strings.Join(passes, ",")
 	var totalDuration int64
 	for i := range intermediaryFiles {
 		stderr.Reset()
 		inpFile, outFile := intermediaryFiles[i], intermediaryFiles[i]
 
-		// Add O3 here to run backend optimisations, otherwise we optimise only IR
 		command := []string{"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
 
 		cmd := exec.Command(command[0], command[1:]...)

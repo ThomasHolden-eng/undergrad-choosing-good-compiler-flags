@@ -21,6 +21,7 @@ func ArrayFromChannel[T any](channel chan T) []T {
 	for elem := range channel {
 		sliceT = append(sliceT, elem)
 	}
+
 	return sliceT
 }
 

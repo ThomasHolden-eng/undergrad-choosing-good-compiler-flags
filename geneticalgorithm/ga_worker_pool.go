@@ -60,15 +60,22 @@ func (p *WorkerPool) StartPool() []Result {
 	}
 
 	wg.Wait()
+
+	p.passSeq = make([][]int, 0, len(p.passSeq))
 	close(p.Results)
 	return util.ArrayFromChannel(p.Results)
 }
 
 func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
+	defer PBar.Add(1)
 	var scores []float32
 
-	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(p.SourceCmd, seq, diff, p.passMan.IntToPass, false)
+	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
+		p.SourceCmd,
+		util.ForEach(seq, p.passMan.IntToPass),
+		diff, false,
+	)
 	if err != nil {
 		p.Results <- Result{
 			score:   util.MAX_FLOAT32,

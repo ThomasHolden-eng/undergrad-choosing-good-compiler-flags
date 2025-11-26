@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/google/shlex"
+	"github.com/schollz/progressbar/v3"
 )
 
 type Population struct {
@@ -23,6 +24,8 @@ const (
 	REPRO_POP  float64 = 0.1 // Proportion of population to apply ONLY reproduction
 	RANDOM_POP float64 = 0.1 // Proportion of population to be randomly generated every generation
 ) // The rest of the population will be generated via reproduction from among SAFE_POP & REPRO_POP
+
+var PBar *progressbar.ProgressBar
 
 func CreatePopulation(minSize, maxLength int, command string) (*Population, error) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -99,6 +102,7 @@ func (p *Population) nextGeneration() {
 }
 
 func (p *Population) RunNGenerations(n int) {
+	PBar = progressbar.Default(int64(n) * int64(cap(p.members)))
 	for range n {
 		p.nextGeneration()
 	}
@@ -157,16 +161,13 @@ func (p *Population) mutate(a []int) {
 func (p *Population) randomCrossover(a, b []int) ([]int, []int) {
 	var aPtr int
 	var bPtr int
-	if len(a) != 0 {
-		aPtr = rand.Int()%(len(a)-1) + 1 // avoid splitting at 0
-	} else {
-		aPtr = 0 // unless we have to
+	if len(a) == 0 || len(b) == 0 { // avoid splitting at 0
+		p.mutate(a)
+		p.mutate(b)
 	}
-	if len(a) != 0 {
-		bPtr = rand.Int()%(len(b)-1) + 1
-	} else {
-		bPtr = 0
-	}
+
+	aPtr = rand.Int() % (len(a))
+	bPtr = rand.Int() % (len(b))
 
 	aHead, aTail := slices.Clone(a[:aPtr]), slices.Clone(a[aPtr:])
 	bHead, bTail := slices.Clone(b[:bPtr]), slices.Clone(b[bPtr:])
@@ -192,7 +193,7 @@ func (p *Population) svlc(a, b []int) ([]int, []int) {
 }
 
 func (p *Population) Best() ([]string, float32) {
-	testharness.CompileFileWithPasses(p.workers.SourceCmd, p.members[0], 0, p.passMan.IntToPass, true)
+	testharness.CompileFileWithPasses(p.workers.SourceCmd, util.ForEach(p.members[0], p.passMan.IntToPass), 0, true)
 
 	return util.ForEach(p.members[0], p.passMan.IntToPass), p.bestScore
 }
