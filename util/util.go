@@ -10,6 +10,12 @@ type Number interface {
 		uint32 | uint64 | uintptr | float32 | float64
 }
 
+// Range stores a pair of numbers, and Within(n) returns true if start <= n <= end
+type Range[T Number] struct {
+	start T
+	end   T
+}
+
 const (
 	MAX_DURATION time.Duration = time.Hour * 292
 	MAX_INT64    int64         = 9223372036854775807
@@ -48,4 +54,14 @@ func ForEach[T, S any](slice []T, f func(T) S) []S {
 	}
 
 	return newSlice
+}
+
+func NewRange[T Number](a, b T) *Range[T] {
+	newRange := Range[T]{a, b}
+
+	return &newRange
+}
+
+func (r *Range[T]) Within(n T) bool {
+	return r.start <= n && n <= r.end
 }

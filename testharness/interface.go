@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -15,7 +14,7 @@ import (
 // Returns compilation time, binary size, file reference & error
 //
 // Caller must resolve returned executable reference (close and delete)
-func CompileFileWithPasses(compilationCommand []string, passes []string, id int, outLocal bool) (time.Duration, int, *os.File, error) {
+func CompileFileWithPasses(compilationCommand []string, passes string, id int, outLocal bool) (time.Duration, int, *os.File, error) {
 	if len(compilationCommand) == 0 {
 		return 0, 0, nil, fmt.Errorf("empty command passed")
 	}
@@ -66,13 +65,12 @@ func CompileFileWithPasses(compilationCommand []string, passes []string, id int,
 		}
 	}
 
-	combinedPasses := strings.Join(passes, ",")
 	var totalDuration int64
 	for i := range intermediaryFiles {
 		stderr.Reset()
 		inpFile, outFile := intermediaryFiles[i], intermediaryFiles[i]
 
-		command := []string{"opt", "-passes=" + combinedPasses, inpFile, "-o", outFile}
+		command := []string{"opt", "-passes=" + passes, inpFile, "-o", outFile}
 
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = &stderr

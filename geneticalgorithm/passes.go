@@ -7,6 +7,11 @@ import (
 type PassManager struct {
 	BidirectionalMap[string, int]
 	MaxPass int
+
+	moduleRange   *util.Range[int]
+	cgsccRange    *util.Range[int]
+	functionRange *util.Range[int]
+	loopRange     *util.Range[int]
 }
 
 func NewPassManager() *PassManager {
@@ -29,6 +34,27 @@ func (pm *PassManager) loadPasses() {
 		}
 	}
 	pm.MaxPass = assignments
+
+	pm.initRanges()
+}
+
+func (pm *PassManager) initRanges() {
+	pm.moduleRange = util.NewRange(
+		*pm.Get("always-inline"),
+		*pm.Get("wholeprogramdevirt"),
+	)
+	pm.cgsccRange = util.NewRange(
+		*pm.Get("argpromotion"),
+		*pm.Get("coro-annotation-elide"),
+	)
+	pm.functionRange = util.NewRange(
+		*pm.Get("adce"),
+		*pm.Get("wasm-eh-prepare"),
+	)
+	pm.loopRange = util.NewRange(
+		*pm.Get("loop-flatten"),
+		*pm.Get("loop-versioning-licm"),
+	)
 }
 
 // Passes extracted from
@@ -37,7 +63,7 @@ func (pm *PassManager) loadPasses() {
 // Other miscellaneous removed passes e.g. helloworld
 func getPasses() []string {
 	return []string{
-		"always-inline",
+		"always-inline", // start module passes - <pass>
 		"assign-guid",
 		"attributor",
 		"attributor-light",
@@ -53,7 +79,7 @@ func getPasses() []string {
 		"ctx-prof-flatten-prethinlink",
 		"noinline-nonprevailing",
 		"deadargelim",
-		"declare-runtime-libcalls",
+		//"declare-runtime-libcalls", // unknown module pass
 		"dfsan",
 		"dxil-upgrade",
 		"elim-avail-extern",
@@ -90,7 +116,7 @@ func getPasses() []string {
 		"memprof-module",
 		"mergefunc",
 		"module-inline",
-		"norecurse-lto-inference",
+		// "norecurse-lto-inference", // unknown module pass
 		"nsan",
 		"openmp-opt",
 		"openmp-opt-postlink",
@@ -113,13 +139,13 @@ func getPasses() []string {
 		"shadow-stack-gc-lowering",
 		"tsan-module",
 		"tysan",
-		"wholeprogramdevirt",
-		"argpromotion",
+		"wholeprogramdevirt", // end module passes
+		"argpromotion",       // start cgscc passes - cgscc(<pass>)
 		"attributor-cgscc",
 		"attributor-light-cgscc",
 		"openmp-opt-cgscc",
-		"coro-annotation-elide",
-		"adce",
+		"coro-annotation-elide", // end cgscc passes
+		"adce",                  // start function passes function(<pass>)
 		"add-discriminators",
 		"aggressive-instcombine",
 		"alignment-from-assumptions",
@@ -138,7 +164,8 @@ func getPasses() []string {
 		"coro-elide",
 		"correlated-propagation",
 		"dce",
-		"declare-to-assign",
+		"declare-to-assign", // Seems to be a module pass but is declared as a function pass
+		// Transformation is the same whether wrapped or not
 		"dfa-jump-threading",
 		"div-rem-pairs",
 		"dse",
@@ -220,11 +247,11 @@ func getPasses() []string {
 		"unify-loop-exits",
 		"unreachableblockelim",
 		"vector-combine",
-		"wasm-eh-prepare",
-		"loop-flatten",
+		"wasm-eh-prepare", // end function passes
+		"loop-flatten",    // start loopnest passes - function(loop(<pass>))
 		"loop-interchange",
-		"loop-unroll-and-jam",
-		"canon-freeze",
+		"loop-unroll-and-jam", // end loopnest passes
+		"canon-freeze",        // start loop passes - function(loop(<pass>))
 		"guard-widening",
 		"extra-simple-loop-unswitch-passes",
 		"indvars",
@@ -239,7 +266,7 @@ func getPasses() []string {
 		"loop-term-fold",
 		"loop-simplifycfg",
 		"loop-unroll-full",
-		"loop-versioning-licm",
+		"loop-versioning-licm", // end loop passes
 	}
 }
 

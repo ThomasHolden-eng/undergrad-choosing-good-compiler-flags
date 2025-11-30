@@ -192,8 +192,8 @@ func (p *Population) svlc(a, b []int) ([]int, []int) {
 	return newA, newB
 }
 
-func (p *Population) Best() ([]string, float32) {
-	testharness.CompileFileWithPasses(p.workers.SourceCmd, util.ForEach(p.members[0], p.passMan.IntToPass), 0, true)
+func (p *Population) Best() (string, float32) {
+	testharness.CompileFileWithPasses(p.workers.SourceCmd, p.workers.makeValid(p.members[0]), 0, true)
 
-	return util.ForEach(p.members[0], p.passMan.IntToPass), p.bestScore
+	return p.workers.makeValid(p.members[0]), p.bestScore
 }

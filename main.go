@@ -17,7 +17,7 @@ func main() {
 		return
 	}
 
-	gaPopulation, err := geneticalgorithm.CreatePopulation(30, 250, commandText)
+	gaPopulation, err := geneticalgorithm.CreatePopulation(10, 250, commandText)
 	if err != nil {
 		fmt.Printf("ga error: %v\n", err)
 		return
@@ -25,5 +25,5 @@ func main() {
 	gaPopulation.RunNGenerations(20)
 
 	seq, val := gaPopulation.Best()
-	fmt.Printf("%v %f\n", seq, val)
+	fmt.Printf("%s %f\n", seq, val)
 }
