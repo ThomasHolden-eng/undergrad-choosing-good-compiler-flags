@@ -26,8 +26,7 @@ ostream & operator<<(ostream & o, const Testcase & t) {
     return o;
 }
 
-int main() {
-
+int toLoop() {
     int retval = 0;
     
     vector<Testcase> testcases{
@@ -76,5 +75,12 @@ int main() {
     }
         
     return retval;
+}
+
+int main() {
+    for (int i = 0; i < 50; i++) {
+        toLoop();
+    }
+    return 0;
 }
 

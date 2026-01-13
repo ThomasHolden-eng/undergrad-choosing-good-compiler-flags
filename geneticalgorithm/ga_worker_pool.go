@@ -3,8 +3,6 @@ package geneticalgorithm
 import (
 	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
-	"bytes"
-	"fmt"
 
 	"os"
 	"sync"
@@ -25,11 +23,11 @@ type WorkerPool struct {
 }
 
 const (
-	COMPILATION_WEIGHT  float32 = 0.0001
-	MEMORY_USAGE_WEIGHT float32 = 0.005
-	BINARY_SIZE_WEIGHT  float32 = 0.0001
+	COMPILATION_WEIGHT  float32 = 0.0
+	MEMORY_USAGE_WEIGHT float32 = 0.0
+	BINARY_SIZE_WEIGHT  float32 = 0.0
 	EXECUTION_WEIGHT    float32 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
-	EXECUTION_CYCLES    int     = 5
+	EXECUTION_CYCLES    int     = 1
 )
 
 func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager) *WorkerPool {
@@ -75,11 +73,11 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 
 	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
 		p.SourceCmd,
-		p.makeValid(seq),
+		p.passMan.makeValid(seq),
 		diff, false,
 	)
 	if err != nil {
-		fmt.Printf("\n%v\n", err)
+		// fmt.Printf("\n%v\n", err)
 		p.Results <- Result{
 			score:   util.MAX_FLOAT32,
 			passSeq: seq,
@@ -123,82 +121,4 @@ func valueFromJobStats(compilation, execution time.Duration, size int, memory in
 		EXECUTION_WEIGHT*float32(execution.Microseconds()) +
 		BINARY_SIZE_WEIGHT*float32(size) +
 		MEMORY_USAGE_WEIGHT*float32(memory))
-}
-
-func (p *WorkerPool) makeValid(seq []int) string {
-	const (
-		INMODULE byte = iota
-		INFUNC   byte = iota
-		INCGSCC  byte = iota
-		INLOOP   byte = iota
-	)
-
-	getClosing := func(scope byte) string {
-		if scope != INLOOP {
-			return ")"
-		}
-		return "))"
-	}
-
-	var buffer bytes.Buffer
-	currentScope := INMODULE
-
-	firstVal := seq[0]
-	if p.passMan.cgsccRange.Within(firstVal) {
-		buffer.WriteString("cgscc(")
-		buffer.WriteString(p.passMan.IntToPass(firstVal))
-	} else if p.passMan.functionRange.Within(firstVal) {
-		buffer.WriteString("function(")
-		buffer.WriteString(p.passMan.IntToPass(firstVal))
-	} else if p.passMan.loopRange.Within(firstVal) {
-		buffer.WriteString("function(loop(")
-		buffer.WriteString(p.passMan.IntToPass(firstVal))
-	} else {
-		buffer.WriteString(p.passMan.IntToPass(firstVal))
-	}
-
-	var next string
-	for _, val := range seq[1:] {
-		if p.passMan.cgsccRange.Within(val) {
-			next, currentScope = p.nextAppend(val, currentScope, INMODULE, INCGSCC, "cgscc(", getClosing)
-			buffer.WriteString(next)
-		} else if p.passMan.functionRange.Within(val) {
-			next, currentScope = p.nextAppend(val, currentScope, INMODULE, INFUNC, "function(", getClosing)
-			buffer.WriteString(next)
-		} else if p.passMan.loopRange.Within(val) {
-			next, currentScope = p.nextAppend(val, currentScope, INMODULE, INLOOP, "function(loop(", getClosing)
-			buffer.WriteString(next)
-		} else {
-			next, currentScope = p.nextAppend(val, currentScope, INMODULE, INMODULE, "", getClosing)
-			buffer.WriteString(next)
-		}
-	}
-
-	if currentScope != INMODULE {
-		buffer.WriteString(")")
-	}
-
-	return buffer.String()
-}
-
-func (p *WorkerPool) nextAppend(pass int, currentScope, defaultScope, desiredScope byte,
-	prefix string, getClosing func(byte) string) (string, byte) {
-
-	retString := ""
-
-	switch currentScope {
-	case desiredScope:
-		retString += ","
-		retString += p.passMan.IntToPass(pass)
-	case defaultScope:
-		retString += "," + prefix
-		retString += p.passMan.IntToPass(pass)
-		currentScope = desiredScope
-	default:
-		retString += getClosing(currentScope) + "," + prefix
-		retString += p.passMan.IntToPass(pass)
-		currentScope = desiredScope
-	}
-
-	return retString, currentScope
 }

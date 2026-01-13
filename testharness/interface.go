@@ -51,7 +51,7 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 		// without being at a disadvantage to a simple clang -O3 command
 		command := []string{
 			compilationCommand[0], inpFile, "-O3", "-emit-llvm", "-Xclang", "-disable-llvm-passes",
-			"-Xclang", "-disable-llvm-optzns", "-Xclang", "-disable-O0-optnone", "-c",
+			"-Xclang", "-disable-llvm-optzns", "-Xclang", "-disable-O0-optnone", "-c", // https://arxiv.org/pdf/2109.08267
 		}
 		command = append(command, flags...)
 		command = append(command, "-o", outFile)
@@ -87,7 +87,8 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 
 	newCommand := mapInputFilesToBC(compilationCommand, intermediaryFiles)
 
-	newCommand = append(newCommand, "-O3")
+	newCommand = append(newCommand, "-O3", "-Xclang", "-disable-llvm-passes",
+		"-Xclang", "-disable-llvm-optzns")
 	if !outLocal {
 		newCommand = append(newCommand, "-o", binName)
 	}

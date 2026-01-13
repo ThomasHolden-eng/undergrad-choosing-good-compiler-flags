@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"slices"
 
-	"github.com/google/shlex"
-	"github.com/schollz/progressbar/v3"
+	"github.com/google/shlex"           // Parsing logic should be exported as not part of the genetic algorithm
+	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
 )
 
 type Population struct {
@@ -193,7 +193,7 @@ func (p *Population) svlc(a, b []int) ([]int, []int) {
 }
 
 func (p *Population) Best() (string, float32) {
-	testharness.CompileFileWithPasses(p.workers.SourceCmd, p.workers.makeValid(p.members[0]), 0, true)
+	testharness.CompileFileWithPasses(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), 0, true)
 
-	return p.workers.makeValid(p.members[0]), p.bestScore
+	return p.passMan.makeValid(p.members[0]), p.bestScore
 }

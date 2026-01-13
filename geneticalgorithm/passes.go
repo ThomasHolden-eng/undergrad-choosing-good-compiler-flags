@@ -2,6 +2,7 @@ package geneticalgorithm
 
 import (
 	"6CCS3PRJ/thomasholden/util"
+	"bytes"
 )
 
 type PassManager struct {
@@ -260,7 +261,7 @@ func getPasses() []string {
 		"loop-idiom",
 		"loop-idiom-vectorize",
 		"loop-instsimplify",
-		"loop-mssa(licm<allowspeculation>)",
+		// "loop-mssa(licm<allowspeculation>)", // Is a pass manager
 		"loop-predication",
 		"loop-reduce",
 		"loop-term-fold",
@@ -364,4 +365,88 @@ func (pm *PassManager) PassToInt(s string) int {
 
 func (pm *PassManager) IntToPass(n int) string {
 	return pm.inverse[n]
+}
+
+func (pm *PassManager) makeValid(seq []int) string {
+	const (
+		INMODULE byte = iota
+		INFUNC   byte = iota
+		INCGSCC  byte = iota
+		INLOOP   byte = iota
+	)
+
+	getClosing := func(scope byte) string {
+		if scope != INLOOP {
+			return ")"
+		}
+		return "))"
+	}
+
+	var buffer bytes.Buffer
+	currentScope := INMODULE
+
+	firstVal := seq[0]
+	if pm.cgsccRange.Within(firstVal) {
+		buffer.WriteString("cgscc(")
+		buffer.WriteString(pm.IntToPass(firstVal))
+		currentScope = INCGSCC
+	} else if pm.functionRange.Within(firstVal) {
+		buffer.WriteString("function(")
+		buffer.WriteString(pm.IntToPass(firstVal))
+		currentScope = INFUNC
+	} else if pm.loopRange.Within(firstVal) {
+		buffer.WriteString("function(loop(")
+		buffer.WriteString(pm.IntToPass(firstVal))
+		currentScope = INLOOP
+	} else {
+		buffer.WriteString(pm.IntToPass(firstVal))
+	}
+
+	var next string
+	for _, val := range seq[1:] {
+		if pm.cgsccRange.Within(val) {
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INCGSCC, "cgscc(", getClosing)
+			buffer.WriteString(next)
+		} else if pm.functionRange.Within(val) {
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INFUNC, "function(", getClosing)
+			buffer.WriteString(next)
+		} else if pm.loopRange.Within(val) {
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INLOOP, "function(loop(", getClosing)
+			buffer.WriteString(next)
+		} else {
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INMODULE, "", getClosing)
+			buffer.WriteString(next)
+		}
+	}
+
+	if currentScope != INMODULE {
+		buffer.WriteString(")")
+	}
+
+	return buffer.String()
+}
+
+func (pm *PassManager) nextAppend(pass int, currentScope, defaultScope, desiredScope byte,
+	prefix string, getClosing func(byte) string) (string, byte) {
+
+	retString := ""
+
+	switch currentScope {
+	// If we are in the same scope as the current pass
+	case desiredScope:
+		retString += ","
+		retString += pm.IntToPass(pass)
+	// If we are in the default scope (module) and need to move into the current pass' scope
+	case defaultScope:
+		retString += "," + prefix
+		retString += pm.IntToPass(pass)
+		currentScope = desiredScope
+	// If we are in a nested scope, but have to move to a different nested scope
+	default:
+		retString += getClosing(currentScope) + "," + prefix
+		retString += pm.IntToPass(pass)
+		currentScope = desiredScope
+	}
+
+	return retString, currentScope
 }
