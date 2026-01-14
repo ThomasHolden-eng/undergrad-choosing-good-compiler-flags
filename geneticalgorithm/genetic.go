@@ -3,9 +3,11 @@ package geneticalgorithm
 import (
 	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
+	"errors"
 	"math/rand"
 	"runtime"
 	"slices"
+	"time"
 
 	"github.com/google/shlex"           // Parsing logic should be exported as not part of the genetic algorithm
 	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
@@ -27,9 +29,9 @@ const (
 
 var PBar *progressbar.ProgressBar
 
-func CreatePopulation(minSize, maxLength int, command string) (*Population, error) {
+func CreatePopulation(minPopSize, maxLength int, command string) (*Population, error) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	size := ((minSize / runtime.NumCPU()) + 1) * runtime.NumCPU()
+	size := ((minPopSize / runtime.NumCPU()) + 1) * runtime.NumCPU()
 
 	pop := &Population{}
 	pop.members = make([][]int, size)
@@ -44,9 +46,15 @@ func CreatePopulation(minSize, maxLength int, command string) (*Population, erro
 
 	commandSplit, err := shlex.Split(command)
 	if err != nil {
+		return nil, errors.New("command lexing failed")
 	}
 
-	pop.workers = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.passMan)
+	o3Time, err := testharness.GetSequenceExecutionTime(commandSplit, pop.passMan.makeValid(pop.members[0]), false)
+	if err != nil {
+		return nil, errors.New("failed basic execution, is the command formatted correctly?:\n" + err.Error())
+	}
+
+	pop.workers = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.passMan, o3Time)
 
 	return pop, nil
 }
@@ -192,8 +200,11 @@ func (p *Population) svlc(a, b []int) ([]int, []int) {
 	return newA, newB
 }
 
-func (p *Population) Best() (string, float32) {
-	testharness.CompileFileWithPasses(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), 0, true)
+func (p *Population) Best() (string, time.Duration, error) {
+	execTime, err := testharness.GetSequenceExecutionTime(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), true)
+	if err != nil {
+		return "", 0, errors.New("failed assessment of final product")
+	}
 
-	return p.passMan.makeValid(p.members[0]), p.bestScore
+	return p.passMan.makeValid(p.members[0]), execTime, nil
 }

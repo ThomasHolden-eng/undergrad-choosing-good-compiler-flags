@@ -1,6 +1,7 @@
 package testharness
 
 import (
+	"6CCS3PRJ/thomasholden/util"
 	"bytes"
 	"fmt"
 	"os"
@@ -143,4 +144,22 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 
 	totalTime := time.Duration(duration * int64(time.Microsecond))
 	return totalTime, memUsage, nil
+}
+
+func GetSequenceExecutionTime(compilationCommand []string, passes string, outLocal bool) (time.Duration, error) {
+	_, _, f, err := CompileFileWithPasses(compilationCommand, passes, 0, outLocal)
+	if err != nil {
+		return time.Second, fmt.Errorf("compilation failure: %w", err)
+	}
+
+	timeList := make([]time.Duration, 3)
+	for i := range 3 {
+		execTime, _, err := RunFile(f)
+		if err != nil {
+			return time.Second, fmt.Errorf("execution failure: %w", err)
+		}
+		timeList[i] = execTime
+	}
+
+	return time.Duration(*util.Median(timeList)), nil
 }

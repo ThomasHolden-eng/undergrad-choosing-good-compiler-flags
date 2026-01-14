@@ -3,6 +3,7 @@ package geneticalgorithm
 import (
 	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
+	"fmt"
 
 	"os"
 	"sync"
@@ -15,11 +16,12 @@ type Result struct {
 }
 
 type WorkerPool struct {
-	passSeq   [][]int
-	fileNum   chan int
-	Results   chan Result
-	SourceCmd []string
-	passMan   *PassManager
+	passSeq    [][]int
+	fileNum    chan int
+	Results    chan Result
+	SourceCmd  []string
+	passMan    *PassManager
+	approxTime time.Duration
 }
 
 const (
@@ -30,7 +32,7 @@ const (
 	EXECUTION_CYCLES    int     = 1
 )
 
-func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager) *WorkerPool {
+func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager, execTime time.Duration) *WorkerPool {
 	pool := new(WorkerPool)
 
 	pool.passSeq = make([][]int, 0, numJobs)
@@ -43,6 +45,9 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassMa
 	pool.SourceCmd = sourceCmd
 
 	pool.passMan = passManager
+
+	pool.approxTime = execTime
+	fmt.Printf("\nO3 Time: %v\n", execTime)
 
 	return pool
 }
@@ -88,7 +93,7 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 
 	var execution_min time.Duration
 	var memory_min int64
-	for begin := time.Now(); time.Since(begin) < 1*time.Second; {
+	for begin := time.Now(); time.Since(begin) < 3*p.approxTime; {
 		execution_min = util.MAX_DURATION
 		memory_min = util.MAX_INT64
 		for range EXECUTION_CYCLES {

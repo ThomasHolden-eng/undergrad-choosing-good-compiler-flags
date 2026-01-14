@@ -24,6 +24,6 @@ func main() {
 	}
 	gaPopulation.RunNGenerations(20)
 
-	seq, val := gaPopulation.Best()
-	fmt.Printf("%s %f\n", seq, val)
+	seq, val, err := gaPopulation.Best()
+	fmt.Printf("%s\n%v\n", seq, val)
 }

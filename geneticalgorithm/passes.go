@@ -145,6 +145,11 @@ func getPasses() []string {
 		"attributor-cgscc",
 		"attributor-light-cgscc",
 		"openmp-opt-cgscc",
+		// start O3 cgscc passes
+		"inline",
+		"function-attrs<skip-non-recursive-function-attrs>",
+		"function-attrs",
+		// end O3 cgscc passes
 		"coro-annotation-elide", // end cgscc passes
 		"adce",                  // start function passes function(<pass>)
 		"add-discriminators",
@@ -230,7 +235,6 @@ func getPasses() []string {
 		"redundant-dbg-inst-elim",
 		"replace-with-veclib",
 		"reg2mem",
-		"safe-stack",
 		"sandbox-vectorizer",
 		"scalarize-masked-mem-intrin",
 		"sccp",
@@ -241,13 +245,38 @@ func getPasses() []string {
 		"sjlj-eh-prepare",
 		"slp-vectorizer",
 		"slsr",
-		"stack-protector",
 		"tailcallelim",
 		"tsan",
 		"typepromotion",
 		"unify-loop-exits",
 		"unreachableblockelim",
 		"vector-combine",
+		// start O3 specific functional passes
+		"ee-instrument<>",
+		"simplifycfg<bonus-inst-threshold=1;" +
+			"no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;keep-loops;" +
+			"no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;" +
+			"speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,sroa<modify-cfg>",
+		"early-cse<>",
+		"simplifycfg<bonus-inst-threshold=1;" +
+			"no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;" +
+			"no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;" +
+			"speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+		"loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>",
+		"simplifycfg<bonus-inst-threshold=1;" +
+			"forward-switch-cond;switch-range-to-icmp;switch-to-lookup;no-keep-loops;" +
+			"hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;sink-common-insts;" +
+			"speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+		"vector-combine",
+		"loop-unroll<O3>",
+		"transform-warning",
+		"sroa<preserve-cfg>",
+		"loop-mssa(licm<allowspeculation>)",
+		"simplifycfg<bonus-inst-threshold=1;" +
+			"no-forward-switch-cond;switch-range-to-icmp;no-switch-to-lookup;keep-loops;" +
+			"no-hoist-common-insts;hoist-loads-stores-with-cond-faulting;no-sink-common-insts;" +
+			"speculate-blocks;simplify-cond-branch;speculate-unpredictables>",
+		// end O3 specific functional passes
 		"wasm-eh-prepare", // end function passes
 		"loop-flatten",    // start loopnest passes - function(loop(<pass>))
 		"loop-interchange",
@@ -267,10 +296,15 @@ func getPasses() []string {
 		"loop-term-fold",
 		"loop-simplifycfg",
 		"loop-unroll-full",
+		// start O3 loop passes
+		"loop-rotate<header-duplication;no-prepare-for-lto>",
+		// end O3 loop passes
 		"loop-versioning-licm", // end loop passes
 	}
 }
 
+// Returns the list of strings making up O3
+// Has had minor tweaks to remove passes intended for only debugging
 func getO3String() []string {
 	return []string{
 		"annotation2metadata",
@@ -278,20 +312,24 @@ func getO3String() []string {
 		"declare-to-assign",
 		"inferattrs",
 		"coro-early",
-		"function<eager-inv>(ee-instrument<>,lower-expect,simplifycfg<bonus-inst-threshold=1;" +
+		"ee-instrument<>",
+		"lower-expect",
+		"simplifycfg<bonus-inst-threshold=1;" +
 			"no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;keep-loops;" +
 			"no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;" +
-			"speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,sroa<modify-cfg>," +
-			"early-cse<>,callsite-splitting)",
+			"speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>,sroa<modify-cfg>",
+		"early-cse<>",
+		"callsite-splitting",
 		"openmp-opt",
 		"ipsccp",
 		"called-value-propagation",
 		"globalopt",
-		"function<eager-inv>(mem2reg,instcombine<max-iterations=1;no-verify-fixpoint>," +
-			"simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;" +
+		"mem2reg",
+		"instcombine<max-iterations=1;no-verify-fixpoint>",
+		"simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;" +
 			"no-switch-to-lookup;keep-loops;no-hoist-common-insts;" +
 			"no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;" +
-			"simplify-cond-branch;no-speculate-unpredictables>)",
+			"simplify-cond-branch;no-speculate-unpredictables>",
 		"always-inline",
 		"require<globals-aa>",
 		"function(invalidate<aa>)",
@@ -323,8 +361,7 @@ func getO3String() []string {
 			"no-switch-to-lookup;keep-loops;hoist-common-insts;" +
 			"no-hoist-loads-stores-with-cond-faulting;sink-common-insts;speculate-blocks;" +
 			"simplify-cond-branch;no-speculate-unpredictables>,instcombine<max-iterations=1;" +
-			"no-verify-fixpoint>),function-attrs,function(require<should-not-run-function-passes>)," +
-			"coro-split,coro-annotation-elide))",
+			"no-verify-fixpoint>),function-attrs,coro-split,coro-annotation-elide))",
 		"deadargelim",
 		"coro-cleanup",
 		"globalopt",
@@ -332,21 +369,38 @@ func getO3String() []string {
 		"elim-avail-extern",
 		"rpo-function-attrs",
 		"recompute-globalsaa",
-		"function<eager-inv>(float2int,lower-constant-intrinsics,chr," +
-			"loop(loop-rotate<header-duplication;no-prepare-for-lto>,loop-deletion),loop-distribute," +
-			"inject-tli-mappings,loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>," +
-			"infer-alignment,loop-load-elim,instcombine<max-iterations=1;no-verify-fixpoint>," +
-			"simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;" +
+		"float2int",
+		"lower-constant-intrinsics",
+		"chr",
+		"loop-rotate<header-duplication;no-prepare-for-lto>",
+		"loop-deletion",
+		"loop-distribute",
+		"inject-tli-mappings",
+		"loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>",
+		"infer-alignment",
+		"loop-load-elim",
+		"instcombine<max-iterations=1;no-verify-fixpoint>",
+		"simplifycfg<bonus-inst-threshold=1;forward-switch-cond;switch-range-to-icmp;" +
 			"switch-to-lookup;no-keep-loops;hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;" +
-			"sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>," +
-			"slp-vectorizer,vector-combine,instcombine<max-iterations=1;no-verify-fixpoint>," +
-			"loop-unroll<O3>,transform-warning,sroa<preserve-cfg>,infer-alignment," +
-			"instcombine<max-iterations=1;no-verify-fixpoint>,loop-mssa(licm<allowspeculation>)," +
-			"alignment-from-assumptions,loop-sink,instsimplify,div-rem-pairs,tailcallelim," +
-			"simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;" +
+			"sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>",
+		"slp-vectorizer",
+		"vector-combine",
+		"instcombine<max-iterations=1;no-verify-fixpoint>",
+		"loop-unroll<O3>",
+		"transform-warning",
+		"sroa<preserve-cfg>",
+		"infer-alignment",
+		"instcombine<max-iterations=1;no-verify-fixpoint>",
+		"loop-mssa(licm<allowspeculation>)",
+		"alignment-from-assumptions",
+		"loop-sink",
+		"instsimplify",
+		"div-rem-pairs",
+		"tailcallelim",
+		"simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;" +
 			"no-switch-to-lookup;keep-loops;no-hoist-common-insts;" +
 			"hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;" +
-			"simplify-cond-branch;speculate-unpredictables>)",
+			"simplify-cond-branch;speculate-unpredictables>",
 		"globaldce",
 		"constmerge",
 		"cg-profile",
@@ -369,14 +423,17 @@ func (pm *PassManager) IntToPass(n int) string {
 
 func (pm *PassManager) makeValid(seq []int) string {
 	const (
-		INMODULE byte = iota
-		INFUNC   byte = iota
-		INCGSCC  byte = iota
-		INLOOP   byte = iota
+		INMODULE  byte   = iota
+		INFUNC    byte   = iota
+		INCGSCC   byte   = iota
+		INLOOP    byte   = iota
+		FUNCTEXT  string = "function<eager-inv>("
+		CGSCCTEXT string = "cgscc(devirt<4>("
+		LOOPTEXT  string = "function<eager-inv>(loop("
 	)
 
 	getClosing := func(scope byte) string {
-		if scope != INLOOP {
+		if scope != INLOOP && scope != INCGSCC {
 			return ")"
 		}
 		return "))"
@@ -387,15 +444,15 @@ func (pm *PassManager) makeValid(seq []int) string {
 
 	firstVal := seq[0]
 	if pm.cgsccRange.Within(firstVal) {
-		buffer.WriteString("cgscc(")
+		buffer.WriteString(CGSCCTEXT)
 		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INCGSCC
 	} else if pm.functionRange.Within(firstVal) {
-		buffer.WriteString("function(")
+		buffer.WriteString(FUNCTEXT)
 		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INFUNC
 	} else if pm.loopRange.Within(firstVal) {
-		buffer.WriteString("function(loop(")
+		buffer.WriteString(LOOPTEXT)
 		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INLOOP
 	} else {
@@ -405,13 +462,13 @@ func (pm *PassManager) makeValid(seq []int) string {
 	var next string
 	for _, val := range seq[1:] {
 		if pm.cgsccRange.Within(val) {
-			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INCGSCC, "cgscc(", getClosing)
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INCGSCC, CGSCCTEXT, getClosing)
 			buffer.WriteString(next)
 		} else if pm.functionRange.Within(val) {
-			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INFUNC, "function(", getClosing)
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INFUNC, FUNCTEXT, getClosing)
 			buffer.WriteString(next)
 		} else if pm.loopRange.Within(val) {
-			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INLOOP, "function(loop(", getClosing)
+			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INLOOP, LOOPTEXT, getClosing)
 			buffer.WriteString(next)
 		} else {
 			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INMODULE, "", getClosing)
@@ -420,7 +477,7 @@ func (pm *PassManager) makeValid(seq []int) string {
 	}
 
 	if currentScope != INMODULE {
-		buffer.WriteString(")")
+		buffer.WriteString(getClosing(currentScope))
 	}
 
 	return buffer.String()
