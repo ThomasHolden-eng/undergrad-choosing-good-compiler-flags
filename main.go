@@ -17,13 +17,17 @@ func main() {
 		return
 	}
 
-	gaPopulation, err := geneticalgorithm.CreatePopulation(10, 250, commandText)
+	gaPopulation, err := geneticalgorithm.CreatePopulation(30, 250, commandText)
 	if err != nil {
 		fmt.Printf("ga error: %v\n", err)
 		return
 	}
-	gaPopulation.RunNGenerations(20)
+	gaPopulation.RunNGenerations(40)
 
 	seq, val, err := gaPopulation.Best()
+	if err != nil {
+		fmt.Printf("ga error: %v\n", err)
+		return
+	}
 	fmt.Printf("%s\n%v\n", seq, val)
 }

@@ -18,13 +18,13 @@ type Population struct {
 	passMan   *PassManager
 	maxLength int
 	workers   *WorkerPool
-	bestScore float32
+	bestScore float64
 }
 
 const (
-	SAFE_POP   float64 = 0.1 // Proportion of population to apply mutation, reproduction & selection
-	REPRO_POP  float64 = 0.1 // Proportion of population to apply ONLY reproduction
-	RANDOM_POP float64 = 0.1 // Proportion of population to be randomly generated every generation
+	SAFE_POP   float64 = 0.2  // Proportion of population to apply reproduction & selection
+	REPRO_POP  float64 = 0.1  // Proportion of population to apply ONLY reproduction
+	RANDOM_POP float64 = 0.05 // Proportion of population to be randomly generated every generation
 ) // The rest of the population will be generated via reproduction from among SAFE_POP & REPRO_POP
 
 var PBar *progressbar.ProgressBar
@@ -37,7 +37,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 	pop.members = make([][]int, size)
 	pop.passMan = NewPassManager()
 	pop.maxLength = maxLength
-	pop.bestScore = util.MAX_FLOAT32
+	pop.bestScore = float64(util.MAX_FLOAT32)
 
 	pop.members[0] = pop.passMan.GetO3Int()
 	for i := range len(pop.members) - 1 {
@@ -74,15 +74,8 @@ func (p *Population) nextGeneration() {
 		p.workers.AddPassSequence(member)
 	}
 	results := p.workers.StartPool()
+	p.sortPop(results)
 
-	slices.SortFunc(results, func(a, b Result) int {
-		if a.score < b.score {
-			return -1
-		} else if a.score > b.score {
-			return 1
-		}
-		return 0
-	})
 	p.bestScore = results[0].score
 
 	p.members = make([][]int, 0, len(p.members))
@@ -200,10 +193,21 @@ func (p *Population) svlc(a, b []int) ([]int, []int) {
 	return newA, newB
 }
 
+func (p *Population) sortPop(results []Result) {
+	slices.SortFunc(results, func(a, b Result) int {
+		if a.score < b.score {
+			return -1
+		} else if a.score > b.score {
+			return 1
+		}
+		return 0
+	})
+}
+
 func (p *Population) Best() (string, time.Duration, error) {
 	execTime, err := testharness.GetSequenceExecutionTime(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), true)
 	if err != nil {
-		return "", 0, errors.New("failed assessment of final product")
+		return "", 0, errors.New("failed assessment of final product\n" + err.Error())
 	}
 
 	return p.passMan.makeValid(p.members[0]), execTime, nil

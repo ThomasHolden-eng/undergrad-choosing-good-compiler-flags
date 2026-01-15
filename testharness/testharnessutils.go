@@ -58,9 +58,3 @@ func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
 
 	return temporarySlice
 }
-
-func cleanFiles(files []string) {
-	for _, file := range files {
-		os.Remove(file)
-	}
-}

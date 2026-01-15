@@ -27,8 +27,6 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 	binName := binFile.Name()
 	binFile.Close()
 
-	var stderr bytes.Buffer
-
 	filesToOptimise := extractInputFiles(compilationCommand)
 
 	var intermediaryFiles []string
@@ -38,10 +36,11 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 			return 0, 0, nil, fmt.Errorf("failed to create temporary file: %w", err)
 		}
 		intermediaryFiles = append(intermediaryFiles, bcFile.Name())
+		defer os.Remove(bcFile.Name()) // Deletes IR when we finish compiling
 		bcFile.Close()
 	}
-	defer cleanFiles(intermediaryFiles)
 
+	var stderr bytes.Buffer
 	flags := extractFlags(compilationCommand)
 	for i := range filesToOptimise {
 		stderr.Reset()
@@ -90,9 +89,15 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 
 	newCommand = append(newCommand, "-O3", "-Xclang", "-disable-llvm-passes",
 		"-Xclang", "-disable-llvm-optzns")
-	if !outLocal {
-		newCommand = append(newCommand, "-o", binName)
+
+	if outLocal {
+		localCmd := exec.Command(newCommand[0], newCommand[1:]...)
+		localCmd.Stderr = &stderr
+		if err := localCmd.Run(); err != nil {
+			return 0, 0, nil, fmt.Errorf("final linking failed: %w\nStderr: %s", err, stderr.String())
+		}
 	}
+	newCommand = append(newCommand, "-o", binName)
 
 	cmd := exec.Command(newCommand[0], newCommand[1:]...)
 	cmd.Stderr = &stderr
@@ -148,6 +153,9 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 
 func GetSequenceExecutionTime(compilationCommand []string, passes string, outLocal bool) (time.Duration, error) {
 	_, _, f, err := CompileFileWithPasses(compilationCommand, passes, 0, outLocal)
+	defer os.Remove(f.Name())
+	defer f.Close() // defer is LIFO
+
 	if err != nil {
 		return time.Second, fmt.Errorf("compilation failure: %w", err)
 	}

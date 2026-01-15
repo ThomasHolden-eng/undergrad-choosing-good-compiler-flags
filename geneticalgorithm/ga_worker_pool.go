@@ -11,7 +11,7 @@ import (
 )
 
 type Result struct {
-	score   float32
+	score   float64
 	passSeq []int
 }
 
@@ -25,10 +25,10 @@ type WorkerPool struct {
 }
 
 const (
-	COMPILATION_WEIGHT  float32 = 0.0
-	MEMORY_USAGE_WEIGHT float32 = 0.0
-	BINARY_SIZE_WEIGHT  float32 = 0.0
-	EXECUTION_WEIGHT    float32 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
+	COMPILATION_WEIGHT  float64 = 0.0
+	MEMORY_USAGE_WEIGHT float64 = 0.0
+	BINARY_SIZE_WEIGHT  float64 = 0.0
+	EXECUTION_WEIGHT    float64 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
 	EXECUTION_CYCLES    int     = 1
 )
 
@@ -74,7 +74,7 @@ func (p *WorkerPool) StartPool() []Result {
 func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 	defer PBar.Add(1)
-	var scores []float32
+	var scores []float64
 
 	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
 		p.SourceCmd,
@@ -82,48 +82,36 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 		diff, false,
 	)
 	if err != nil {
-		// fmt.Printf("\n%v\n", err)
+		fmt.Printf("\n%v\n", err)
 		p.Results <- Result{
-			score:   util.MAX_FLOAT32,
+			score:   float64(util.MAX_FLOAT32),
 			passSeq: seq,
 		}
 		return
 	}
 	defer os.Remove(newFile.Name())
 
-	var execution_min time.Duration
-	var memory_min int64
-	for begin := time.Now(); time.Since(begin) < 3*p.approxTime; {
-		execution_min = util.MAX_DURATION
-		memory_min = util.MAX_INT64
-		for range EXECUTION_CYCLES {
-			execution_t, memory_usage, err := testharness.RunFile(newFile)
-			if err != nil {
-				break
-			}
-			if execution_t < execution_min && execution_t != 0 {
-				execution_min = execution_t
-			}
-			if memory_usage < memory_min && memory_usage != 0 {
-				memory_min = memory_usage
-			}
+	for begin := time.Now(); time.Since(begin) < 5*p.approxTime; {
+		execution_t, memory_usage, err := testharness.RunFile(newFile)
+		if err != nil {
+			break
 		}
 
-		heuristic := valueFromJobStats(compilation_t, execution_min, binary_size, memory_min)
+		heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
 
 		scores = append(scores, heuristic)
 	}
 	newFile.Close()
 
 	p.Results <- Result{
-		score:   float32(*util.Median(scores)),
+		score:   *util.Median(scores),
 		passSeq: seq,
 	}
 }
 
-func valueFromJobStats(compilation, execution time.Duration, size int, memory int64) float32 {
-	return (COMPILATION_WEIGHT*float32(compilation.Microseconds()) +
-		EXECUTION_WEIGHT*float32(execution.Microseconds()) +
-		BINARY_SIZE_WEIGHT*float32(size) +
-		MEMORY_USAGE_WEIGHT*float32(memory))
+func valueFromJobStats(compilation, execution time.Duration, size int, memory int64) float64 {
+	return (COMPILATION_WEIGHT*float64(compilation.Microseconds()) +
+		EXECUTION_WEIGHT*float64(execution.Microseconds()) +
+		BINARY_SIZE_WEIGHT*float64(size) +
+		MEMORY_USAGE_WEIGHT*float64(memory))
 }

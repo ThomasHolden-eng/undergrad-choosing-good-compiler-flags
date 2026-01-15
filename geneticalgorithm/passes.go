@@ -80,7 +80,7 @@ func getPasses() []string {
 		"ctx-prof-flatten-prethinlink",
 		"noinline-nonprevailing",
 		"deadargelim",
-		//"declare-runtime-libcalls", // unknown module pass
+		// "declare-runtime-libcalls", // unknown module pass
 		"dfsan",
 		"dxil-upgrade",
 		"elim-avail-extern",
@@ -91,16 +91,15 @@ func getPasses() []string {
 		"global-merge-func",
 		"globalopt",
 		"globalsplit",
-		"hipstdpar-interpose-alloc",
+		/*"hipstdpar-interpose-alloc",
 		"hipstdpar-math-fixup",
-		"hipstdpar-select-accelerator-code",
+		"hipstdpar-select-accelerator-code",*/ // All platform specific
 		"hotcoldsplit",
 		"inferattrs",
 		"inliner-ml-advisor-release",
 		"inliner-wrapper",
 		"inliner-wrapper-no-mandatory-first",
 		"insert-gcov-profiling",
-		"instcombine<max-iterations=1;no-verify-fixpoint>",
 		"instrprof",
 		"ctx-instr-lower",
 		"iroutliner",
@@ -113,7 +112,7 @@ func getPasses() []string {
 		"fatlto-cleanup",
 		"pgo-force-function-attrs",
 		"memprof-context-disambiguation",
-		"memprof-remove-attributes",
+		// "memprof-remove-attributes", // unknown module pass
 		"memprof-module",
 		"mergefunc",
 		"module-inline",
@@ -230,7 +229,6 @@ func getPasses() []string {
 		"partially-inline-libcalls",
 		"pgo-memop-opt",
 		"place-safepoints",
-		"prof-inject",
 		"reassociate",
 		"redundant-dbg-inst-elim",
 		"replace-with-veclib",
@@ -252,6 +250,7 @@ func getPasses() []string {
 		"unreachableblockelim",
 		"vector-combine",
 		// start O3 specific functional passes
+		"instcombine<max-iterations=1;no-verify-fixpoint>",
 		"ee-instrument<>",
 		"simplifycfg<bonus-inst-threshold=1;" +
 			"no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-lookup;keep-loops;" +
