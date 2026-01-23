@@ -66,7 +66,7 @@ func (p *Population) generateRandomIntSlice() []int {
 		returnSlice = append(returnSlice, rand.Int()%(p.passMan.MaxPass))
 	}
 
-	return returnSlice
+	return slices.Clip(returnSlice)
 }
 
 func (p *Population) nextGeneration() {

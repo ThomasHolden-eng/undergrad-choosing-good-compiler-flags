@@ -60,7 +60,7 @@ func (pm *PassManager) initRanges() {
 
 // Passes extracted from
 // https://github.com/llvm/llvm-project/blob/d162c91c01a66e4af0af190044961e60db0eeb3d/llvm/lib/Passes/PassRegistry.def
-// All passes including keywords analysis, print, view, dot, verify, callback, eval, no-op, trigger, and invalidate are removed
+// All passes including keywords analysis, print, view, dot, verify, callback, eval, no-op, prof, pgo, trigger, and invalidate are removed
 // Other miscellaneous removed passes e.g. helloworld
 func getPasses() []string {
 	return []string{
@@ -70,24 +70,24 @@ func getPasses() []string {
 		"attributor-light",
 		"called-value-propagation",
 		"canonicalize-aliases",
-		"cg-profile",
+		// "cg-profile", // requires profile (probably)
 		"constmerge",
 		"coro-cleanup",
 		"coro-early",
 		"cross-dso-cfi",
-		"ctx-instr-gen",
-		"ctx-prof-flatten",
-		"ctx-prof-flatten-prethinlink",
+		// "ctx-instr-gen", // not beneficial for performance + fragile
+		// "ctx-prof-flatten",
+		// "ctx-prof-flatten-prethinlink", // both require profile
 		"noinline-nonprevailing",
 		"deadargelim",
 		// "declare-runtime-libcalls", // unknown module pass
-		"dfsan",
+		// "dfsan", // requires libraries
 		"dxil-upgrade",
 		"elim-avail-extern",
 		"extract-blocks",
 		"expand-variadics",
 		"forceattrs",
-		"function-import",
+		//"function-import", requires file
 		"global-merge-func",
 		"globalopt",
 		"globalsplit",
@@ -96,12 +96,12 @@ func getPasses() []string {
 		"hipstdpar-select-accelerator-code",*/ // All platform specific
 		"hotcoldsplit",
 		"inferattrs",
-		"inliner-ml-advisor-release",
+		//"inliner-ml-advisor-release", // too fragile
 		"inliner-wrapper",
 		"inliner-wrapper-no-mandatory-first",
-		"insert-gcov-profiling",
-		"instrprof",
-		"ctx-instr-lower",
+		// "insert-gcov-profiling", // requires profile (probably)
+		// "instrprof", // requires profile (probably)
+		// "ctx-instr-lower", // not beneficial for performance + fragile
 		"iroutliner",
 		"jmc-instrumenter",
 		"lower-emutls",
@@ -110,20 +110,20 @@ func getPasses() []string {
 		"simplify-type-tests",
 		"lowertypetests",
 		"fatlto-cleanup",
-		"pgo-force-function-attrs",
-		"memprof-context-disambiguation",
+		// "pgo-force-function-attrs", // requires profile
+		// "memprof-context-disambiguation", // requires profile
 		// "memprof-remove-attributes", // unknown module pass
-		"memprof-module",
+		//"memprof-module", // requires memprof data
 		"mergefunc",
 		"module-inline",
 		// "norecurse-lto-inference", // unknown module pass
-		"nsan",
+		// "nsan", // requires libraries
 		"openmp-opt",
 		"openmp-opt-postlink",
 		"partial-inliner",
-		"pgo-icall-prom",
-		"pgo-instr-gen",
-		"pgo-instr-use",
+		// "pgo-icall-prom", // requires profile
+		// "pgo-instr-gen", // requires profile
+		//"pgo-instr-use", // requires profile
 		"pre-isel-intrinsic-lowering",
 		"pseudo-probe",
 		"pseudo-probe-update",
@@ -131,14 +131,14 @@ func getPasses() []string {
 		"rewrite-statepoints-for-gc",
 		"rewrite-symbols",
 		"rpo-function-attrs",
-		"rtsan",
-		"sample-profile",
+		// "rtsan", // requires libraries
+		//"sample-profile", // requires profile
 		"sancov-module",
 		"sanmd-module",
 		"scc-oz-module-inliner",
 		"shadow-stack-gc-lowering",
-		"tsan-module",
-		"tysan",
+		// "tsan-module", // requires libraries
+		// "tysan", // requires libraries
 		"wholeprogramdevirt", // end module passes
 		"argpromotion",       // start cgscc passes - cgscc(<pass>)
 		"attributor-cgscc",
@@ -217,7 +217,7 @@ func getPasses() []string {
 		"make-guards-explicit",
 		"mem2reg",
 		"memcpyopt",
-		"memprof",
+		// "memprof", // requires profile
 		"mergeicmps",
 		"mergereturn",
 		"move-auto-init",
@@ -227,7 +227,7 @@ func getPasses() []string {
 		"objc-arc-contract",
 		"objc-arc-expand",
 		"partially-inline-libcalls",
-		"pgo-memop-opt",
+		// "pgo-memop-opt", // requires profile
 		"place-safepoints",
 		"reassociate",
 		"redundant-dbg-inst-elim",
@@ -244,7 +244,7 @@ func getPasses() []string {
 		"slp-vectorizer",
 		"slsr",
 		"tailcallelim",
-		"tsan",
+		// "tsan", // requires libraries
 		"typepromotion",
 		"unify-loop-exits",
 		"unreachableblockelim",

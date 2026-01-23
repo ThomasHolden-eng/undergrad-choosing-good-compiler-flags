@@ -82,7 +82,7 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 		diff, false,
 	)
 	if err != nil {
-		fmt.Printf("\n%v\n", err)
+		// fmt.Printf("\n%v\n", err)
 		p.Results <- Result{
 			score:   float64(util.MAX_FLOAT32),
 			passSeq: seq,
