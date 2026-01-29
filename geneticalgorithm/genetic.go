@@ -2,7 +2,6 @@ package geneticalgorithm
 
 import (
 	"6CCS3PRJ/thomasholden/testharness"
-	"6CCS3PRJ/thomasholden/util"
 	"errors"
 	"math/rand"
 	"runtime"
@@ -13,12 +12,12 @@ import (
 	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
 )
 
+// Population manages the genomes of the genetic algorithm.
 type Population struct {
-	members   [][]int
-	passMan   *PassManager
-	maxLength int
-	workers   *WorkerPool
-	bestScore float64
+	members   [][]int      // slices of int slices, where each int slice is a pass sequence.
+	passMan   *PassManager // pointer to a PassManager.
+	maxLength int          // the maximum length of any genome at any given time.
+	workers   *WorkerPool  // pointer to a pool of parallelised workers.
 }
 
 const (
@@ -27,8 +26,9 @@ const (
 	RANDOM_POP float64 = 0.05 // Proportion of population to be randomly generated every generation
 ) // The rest of the population will be generated via reproduction from among SAFE_POP & REPRO_POP
 
-var PBar *progressbar.ProgressBar
+var PBar *progressbar.ProgressBar // to be moved
 
+// CreatePopulation initialized a Population struct and its variables.
 func CreatePopulation(minPopSize, maxLength int, command string) (*Population, error) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	size := ((minPopSize / runtime.NumCPU()) + 1) * runtime.NumCPU()
@@ -37,7 +37,6 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 	pop.members = make([][]int, size)
 	pop.passMan = NewPassManager()
 	pop.maxLength = maxLength
-	pop.bestScore = float64(util.MAX_FLOAT32)
 
 	pop.members[0] = pop.passMan.GetO3Int()
 	for i := range len(pop.members) - 1 {
@@ -59,6 +58,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 	return pop, nil
 }
 
+// generateRandomIntSlice returns a slice of ints within the pass range of length [1-p.maxLength].
 func (p *Population) generateRandomIntSlice() []int {
 	returnSlice := make([]int, 0, p.maxLength)
 
@@ -69,14 +69,15 @@ func (p *Population) generateRandomIntSlice() []int {
 	return slices.Clip(returnSlice)
 }
 
+// nextGeneration executes a single generation of the genetic algorithm.
+//
+// This is composed of execution -> elitism -> reproduction+mutation.
 func (p *Population) nextGeneration() {
 	for _, member := range p.members {
 		p.workers.AddPassSequence(member)
 	}
 	results := p.workers.StartPool()
 	p.sortPop(results)
-
-	p.bestScore = results[0].score
 
 	p.members = make([][]int, 0, len(p.members))
 
@@ -102,6 +103,7 @@ func (p *Population) nextGeneration() {
 	}
 }
 
+// RunNGenerations executes nextGeneration n times.
 func (p *Population) RunNGenerations(n int) {
 	PBar = progressbar.Default(int64(n) * int64(cap(p.members)))
 	for range n {
@@ -109,6 +111,9 @@ func (p *Population) RunNGenerations(n int) {
 	}
 }
 
+// reproduce enacts crossover between two population members (pass sequences).
+//
+// Currently implemented as one-point crossover.
 func (p *Population) reproduce(a, b []int) ([]int, []int) {
 	newA := slices.Clone(a)
 	newB := slices.Clone(b)
@@ -131,6 +136,7 @@ func (p *Population) reproduce(a, b []int) ([]int, []int) {
 	return newA, newB
 }
 
+// mutate applies a random mutation to a single population member.
 func (p *Population) mutate(a []int) {
 	if len(a) == 0 {
 		newPass := rand.Int() % p.passMan.MaxPass
@@ -159,6 +165,7 @@ func (p *Population) mutate(a []int) {
 
 }
 
+// randomCrossover enacts one point crossover between two population members.
 func (p *Population) randomCrossover(a, b []int) ([]int, []int) {
 	var aPtr int
 	var bPtr int
@@ -179,20 +186,7 @@ func (p *Population) randomCrossover(a, b []int) ([]int, []int) {
 	return newA, newB
 }
 
-// https://doi.org/10.1109/tevc.2006.878096 TODO
-func (p *Population) svlc(a, b []int) ([]int, []int) {
-	aPtr := rand.Int() % len(a)
-	bPtr := rand.Int() % len(b)
-
-	aHead, aTail := slices.Clone(a[:aPtr]), slices.Clone(a[aPtr:])
-	bHead, bTail := slices.Clone(b[:bPtr]), slices.Clone(b[bPtr:])
-
-	newA := append(aHead, bTail...)
-	newB := append(bHead, aTail...)
-
-	return newA, newB
-}
-
+// sortPop sorts the population depending on their achieved results.
 func (p *Population) sortPop(results []Result) {
 	slices.SortFunc(results, func(a, b Result) int {
 		if a.score < b.score {
@@ -204,6 +198,7 @@ func (p *Population) sortPop(results []Result) {
 	})
 }
 
+// Best returns the best performing population member's passes and execution time.
 func (p *Population) Best() (string, time.Duration, error) {
 	execTime, err := testharness.GetSequenceExecutionTime(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), true)
 	if err != nil {

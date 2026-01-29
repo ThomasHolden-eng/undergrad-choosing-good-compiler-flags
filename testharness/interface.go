@@ -151,6 +151,7 @@ func RunFile(file *os.File) (time.Duration, int64, error) {
 	return totalTime, memUsage, nil
 }
 
+// GetSequenceExecutionTime returns only the execution time of a pass sequence.
 func GetSequenceExecutionTime(compilationCommand []string, passes string, outLocal bool) (time.Duration, error) {
 	_, _, f, err := CompileFileWithPasses(compilationCommand, passes, 0, outLocal)
 	defer os.Remove(f.Name())

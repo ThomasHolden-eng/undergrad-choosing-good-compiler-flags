@@ -5,9 +5,10 @@ import (
 	"bytes"
 )
 
+// PassManager initializes and contains pass data.
 type PassManager struct {
 	BidirectionalMap[string, int]
-	MaxPass int
+	MaxPass int // MaxPass is the highest index/size of the mapping in PassManager
 
 	moduleRange   *util.Range[int]
 	cgsccRange    *util.Range[int]
@@ -15,17 +16,19 @@ type PassManager struct {
 	loopRange     *util.Range[int]
 }
 
+// NewPassManager initializes and returns a PassManager pointer.
 func NewPassManager() *PassManager {
 	manager := &PassManager{}
+	manager.init()
 	manager.loadPasses()
 
 	return manager
 }
 
+// loadPasses adds all passes to the mapping
 func (pm *PassManager) loadPasses() {
 	passList := getPasses()
 	passList = append(passList, getO3String()...)
-	pm.init()
 
 	assignments := 0
 	for _, pass := range passList {
@@ -60,8 +63,10 @@ func (pm *PassManager) initRanges() {
 
 // Passes extracted from
 // https://github.com/llvm/llvm-project/blob/d162c91c01a66e4af0af190044961e60db0eeb3d/llvm/lib/Passes/PassRegistry.def
-// All passes including keywords analysis, print, view, dot, verify, callback, eval, no-op, prof, pgo, trigger, and invalidate are removed
-// Other miscellaneous removed passes e.g. helloworld
+//
+// All passes including keywords analysis, print, view, dot, verify, callback, eval, no-op, prof,
+// pgo, trigger, and invalidate are removed.
+// Other miscellaneous and fragile passes removed e.g. helloworld
 func getPasses() []string {
 	return []string{
 		"always-inline", // start module passes - <pass>
@@ -408,18 +413,22 @@ func getO3String() []string {
 	}
 }
 
+// GetO3Int returns an int slice where each O3 pass is transformed to its integer representation.
 func (pm *PassManager) GetO3Int() []int {
 	return util.ForEach(getO3String(), pm.PassToInt)
 }
 
+// PassToInt returns the int mapped to by the string in the PassManager.
 func (pm *PassManager) PassToInt(s string) int {
 	return pm.direct[s]
 }
 
+// PassToInt returns the string mapped to by the int in the PassManager.
 func (pm *PassManager) IntToPass(n int) string {
 	return pm.inverse[n]
 }
 
+// makeValid transforms a list of ints, representing passes, into a valid opt pipeline.
 func (pm *PassManager) makeValid(seq []int) string {
 	const (
 		INMODULE  byte   = iota
@@ -432,7 +441,7 @@ func (pm *PassManager) makeValid(seq []int) string {
 	)
 
 	getClosing := func(scope byte) string {
-		if scope != INLOOP && scope != INCGSCC {
+		if scope == INFUNC {
 			return ")"
 		}
 		return "))"
@@ -444,35 +453,28 @@ func (pm *PassManager) makeValid(seq []int) string {
 	firstVal := seq[0]
 	if pm.cgsccRange.Within(firstVal) {
 		buffer.WriteString(CGSCCTEXT)
-		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INCGSCC
 	} else if pm.functionRange.Within(firstVal) {
 		buffer.WriteString(FUNCTEXT)
-		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INFUNC
 	} else if pm.loopRange.Within(firstVal) {
 		buffer.WriteString(LOOPTEXT)
-		buffer.WriteString(pm.IntToPass(firstVal))
 		currentScope = INLOOP
-	} else {
-		buffer.WriteString(pm.IntToPass(firstVal))
 	}
+	buffer.WriteString(pm.IntToPass(firstVal))
 
 	var next string
 	for _, val := range seq[1:] {
 		if pm.cgsccRange.Within(val) {
 			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INCGSCC, CGSCCTEXT, getClosing)
-			buffer.WriteString(next)
 		} else if pm.functionRange.Within(val) {
 			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INFUNC, FUNCTEXT, getClosing)
-			buffer.WriteString(next)
 		} else if pm.loopRange.Within(val) {
 			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INLOOP, LOOPTEXT, getClosing)
-			buffer.WriteString(next)
 		} else {
 			next, currentScope = pm.nextAppend(val, currentScope, INMODULE, INMODULE, "", getClosing)
-			buffer.WriteString(next)
 		}
+		buffer.WriteString(next)
 	}
 
 	if currentScope != INMODULE {
@@ -482,6 +484,7 @@ func (pm *PassManager) makeValid(seq []int) string {
 	return buffer.String()
 }
 
+// nextAppend manages the logic for appending a pass based upon the previous pass.
 func (pm *PassManager) nextAppend(pass int, currentScope, defaultScope, desiredScope byte,
 	prefix string, getClosing func(byte) string) (string, byte) {
 
@@ -491,18 +494,15 @@ func (pm *PassManager) nextAppend(pass int, currentScope, defaultScope, desiredS
 	// If we are in the same scope as the current pass
 	case desiredScope:
 		retString += ","
-		retString += pm.IntToPass(pass)
 	// If we are in the default scope (module) and need to move into the current pass' scope
 	case defaultScope:
 		retString += "," + prefix
-		retString += pm.IntToPass(pass)
-		currentScope = desiredScope
 	// If we are in a nested scope, but have to move to a different nested scope
 	default:
 		retString += getClosing(currentScope) + "," + prefix
-		retString += pm.IntToPass(pass)
-		currentScope = desiredScope
 	}
+	retString += pm.IntToPass(pass)
+	currentScope = desiredScope
 
 	return retString, currentScope
 }
