@@ -24,6 +24,7 @@ type WorkerPool struct {
 	SourceCmd  []string    // the command from which the project should be built
 	passMan    *PassManager
 	approxTime time.Duration
+	cache      map[string]float64
 }
 
 const (
@@ -53,6 +54,8 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassMa
 
 	pool.approxTime = execTime
 	fmt.Printf("\nO3 Time: %v\n", execTime)
+
+	pool.cache = make(map[string]float64)
 
 	return pool
 }
@@ -86,6 +89,18 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer PBar.Add(1)
 	var scores []float64
 
+	key := ""
+	for pass := range seq {
+		key += string(pass) + ","
+	}
+	if score, ok := p.cache[key]; ok {
+		p.Results <- Result{
+			score:   score,
+			passSeq: seq,
+		}
+		return
+	}
+
 	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
 		p.SourceCmd,
 		p.passMan.makeValid(seq),
@@ -94,17 +109,24 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	if err != nil {
 		// fmt.Printf("\n%v\n", err)
 		p.Results <- Result{
-			score:   float64(util.MAX_FLOAT32),
+			score:   util.MAX_FLOAT64,
 			passSeq: seq,
 		}
 		return
 	}
 	defer os.Remove(newFile.Name())
 
-	for begin := time.Now(); time.Since(begin) < 5*p.approxTime; {
+	for begin := time.Now(); (time.Since(begin) < 5*p.approxTime ||
+		!MedianConfidence(scores, 0.05)) &&
+		time.Since(begin) < 12*p.approxTime; {
+
 		execution_t, memory_usage, err := testharness.RunFile(newFile)
 		if err != nil {
-			break
+			p.Results <- Result{
+				score:   util.MAX_FLOAT64,
+				passSeq: seq,
+			}
+			return
 		}
 
 		heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
@@ -113,8 +135,9 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	}
 	newFile.Close()
 
+	p.cache[key] = util.Median(scores)
 	p.Results <- Result{
-		score:   *util.Median(scores),
+		score:   util.Median(scores),
 		passSeq: seq,
 	}
 }

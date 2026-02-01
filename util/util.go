@@ -1,6 +1,7 @@
 package util
 
 import (
+	"math"
 	"slices"
 	"time"
 )
@@ -20,7 +21,7 @@ type Range[T Number] struct {
 const (
 	MAX_DURATION time.Duration = time.Hour * 292     // The maximum possible duration value.
 	MAX_INT64    int64         = 9223372036854775807 // The maximum possible int64 value.
-	MAX_FLOAT32  float32       = 3.402823e+38        // The maximum possible float32 value.
+	MAX_FLOAT64  float64       = 1.7e+308            // The maximum possible float64 value.
 )
 
 // ArrayFromChannel takes a channel and returns an array containing all the elements queued.
@@ -33,20 +34,43 @@ func ArrayFromChannel[T any](channel chan T) []T {
 	return sliceT
 }
 
-// Median returns the median of any slice of ints or floats.
-func Median[T Number](list []T) *T {
+// linearInterpolate returns an interpolated value across the list input.
+func linearInterpolate[T Number](list []T, t float64) float64 {
 	slices.Sort(list)
 
-	length := len(list)
+	length := len(list) - 1
+	lower := int(math.Floor(float64(length) * t))
+	upper := int(math.Ceil(float64(length) * t))
 	if length == 0 {
-		return nil
-	} else if length%2 == 0 {
-		val := list[length/2] + list[-1+length/2]/2
-		return &val
+		return 0.0
+	} else if lower == upper {
+		return float64(list[lower])
 	} else {
-		val := list[length/2]
-		return &val
+		fraction := (float64(length) * t) - math.Floor(float64(length)*t)
+		return float64(list[lower]) + float64(list[upper]-list[lower])*fraction
 	}
+}
+
+// Median returns the median of any slice of ints or floats.
+//
+// Sorts as a side effect.
+func Median[T Number](list []T) float64 {
+	if len(list) == 0 {
+		return MAX_FLOAT64
+	}
+	val := linearInterpolate(list, 0.5)
+	return val
+}
+
+// IQR returns the IQR of any slice of ints or floats.
+//
+// Sorts as a side effect.
+func IQR[T Number](list []T) float64 {
+	if len(list) == 0 {
+		return MAX_FLOAT64
+	}
+	val := linearInterpolate(list, 0.75) - linearInterpolate(list, 0.25)
+	return val
 }
 
 // ForEach applies a function to every element of a slice.

@@ -170,5 +170,5 @@ func GetSequenceExecutionTime(compilationCommand []string, passes string, outLoc
 		timeList[i] = execTime
 	}
 
-	return time.Duration(*util.Median(timeList)), nil
+	return time.Duration(util.Median(timeList)), nil
 }
