@@ -79,6 +79,8 @@ func (p *Population) nextGeneration() {
 	results := p.workers.StartPool()
 	p.sortPop(results)
 
+	// fmt.Printf("\n\nResults: %+v\n\n", results)
+
 	p.members = make([][]int, 0, len(p.members))
 
 	safeMarker := int(SAFE_POP * float64(len(results)))

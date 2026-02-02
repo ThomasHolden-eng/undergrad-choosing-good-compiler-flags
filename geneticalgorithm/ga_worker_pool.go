@@ -25,6 +25,7 @@ type WorkerPool struct {
 	passMan    *PassManager
 	approxTime time.Duration
 	cache      map[string]float64
+	cacheMutex sync.Mutex
 }
 
 const (
@@ -52,10 +53,11 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassMa
 
 	pool.passMan = passManager
 
+	pool.cache = make(map[string]float64)
+
 	pool.approxTime = execTime
 	fmt.Printf("\nO3 Time: %v\n", execTime)
-
-	pool.cache = make(map[string]float64)
+	pool.cache[fmt.Sprintf("%v", passManager.GetO3Int())] = valueFromJobStats(0, execTime, 0, 0)
 
 	return pool
 }
@@ -89,11 +91,12 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer PBar.Add(1)
 	var scores []float64
 
-	key := ""
-	for pass := range seq {
-		key += string(pass) + ","
-	}
-	if score, ok := p.cache[key]; ok {
+	key := fmt.Sprintf("%v", seq)
+	p.cacheMutex.Lock()
+	score, ok := p.cache[key]
+	p.cacheMutex.Unlock()
+
+	if ok {
 		p.Results <- Result{
 			score:   score,
 			passSeq: seq,
@@ -120,7 +123,7 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 		!MedianConfidence(scores, 0.05)) &&
 		time.Since(begin) < 12*p.approxTime; {
 
-		execution_t, memory_usage, err := testharness.RunFile(newFile)
+		execution_t, memory_usage, err := testharness.RunFile(newFile, p.approxTime*12)
 		if err != nil {
 			p.Results <- Result{
 				score:   util.MAX_FLOAT64,
@@ -135,7 +138,10 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	}
 	newFile.Close()
 
+	p.cacheMutex.Lock()
 	p.cache[key] = util.Median(scores)
+	p.cacheMutex.Unlock()
+
 	p.Results <- Result{
 		score:   util.Median(scores),
 		passSeq: seq,

@@ -3,6 +3,7 @@ package testharness
 import (
 	"6CCS3PRJ/thomasholden/util"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -126,11 +127,16 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 
 // Takes a file reference
 // Returns execution time, memory usage & error
-func RunFile(file *os.File) (time.Duration, int64, error) {
+func RunFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, error) {
 	var stderr bytes.Buffer
 
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
+	defer cancel()
+
 	file.Chmod(0755)
-	cmd := exec.Command(file.Name())
+	cmd := exec.CommandContext(ctx, file.Name())
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -163,7 +169,7 @@ func GetSequenceExecutionTime(compilationCommand []string, passes string, outLoc
 
 	timeList := make([]time.Duration, 3)
 	for i := range 3 {
-		execTime, _, err := RunFile(f)
+		execTime, _, err := RunFile(f, time.Hour*24)
 		if err != nil {
 			return time.Second, fmt.Errorf("execution failure: %w", err)
 		}

@@ -41,7 +41,7 @@ func linearInterpolate[T Number](list []T, t float64) float64 {
 	length := len(list) - 1
 	lower := int(math.Floor(float64(length) * t))
 	upper := int(math.Ceil(float64(length) * t))
-	if length == 0 {
+	if len(list) == 0 {
 		return 0.0
 	} else if lower == upper {
 		return float64(list[lower])
