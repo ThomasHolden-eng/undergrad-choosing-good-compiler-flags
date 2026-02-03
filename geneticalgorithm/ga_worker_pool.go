@@ -24,8 +24,7 @@ type WorkerPool struct {
 	SourceCmd  []string    // the command from which the project should be built
 	passMan    *PassManager
 	approxTime time.Duration
-	cache      map[string]float64
-	cacheMutex sync.Mutex
+	cache      util.Cache[string, float64]
 }
 
 const (
@@ -38,7 +37,7 @@ const (
 )
 
 // NewWorkerPool returns a pointer to a worker pool.
-func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager, execTime time.Duration) *WorkerPool {
+func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager, baseline []int) (*WorkerPool, error) {
 	pool := new(WorkerPool)
 
 	pool.passSeq = make([][]int, 0, numJobs)
@@ -53,13 +52,19 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassMa
 
 	pool.passMan = passManager
 
-	pool.cache = make(map[string]float64)
+	pool.cache.Init()
 
-	pool.approxTime = execTime
-	fmt.Printf("\nO3 Time: %v\n", execTime)
-	pool.cache[fmt.Sprintf("%v", passManager.GetO3Int())] = valueFromJobStats(0, execTime, 0, 0)
+	validO3 := pool.passMan.makeValid(baseline)
+	o3Time, err := testharness.GetSetBaselineStats(sourceCmd, validO3)
+	if err != nil {
+		return nil, err
+	}
 
-	return pool
+	pool.approxTime = o3Time
+	fmt.Printf("\nO3 Time: %v\n", o3Time)
+	pool.cache.Set(validO3, valueFromJobStats(0, o3Time, 0, 0))
+
+	return pool, nil
 }
 
 // AddPassSequence appends a sequence to be queued for execution.
@@ -89,14 +94,10 @@ func (p *WorkerPool) StartPool() []Result {
 func (p *WorkerPool) runJob(seq []int, diff int) {
 	defer func() { p.fileNum <- diff }()
 	defer PBar.Add(1)
-	var scores []float64
 
-	key := fmt.Sprintf("%v", seq)
-	p.cacheMutex.Lock()
-	score, ok := p.cache[key]
-	p.cacheMutex.Unlock()
+	validSeq := p.passMan.makeValid(seq)
 
-	if ok {
+	if score, ok := p.cache.Get(validSeq); ok {
 		p.Results <- Result{
 			score:   score,
 			passSeq: seq,
@@ -104,48 +105,41 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 		return
 	}
 
+	finalScore, err := p.CompileAndExecute(validSeq, diff, false)
+	if err != nil {
+		p.queueErrorResult(seq)
+		return
+	}
+
+	p.cache.Set(validSeq, finalScore)
+
+	p.Results <- Result{
+		score:   finalScore,
+		passSeq: seq,
+	}
+}
+
+func (p *WorkerPool) CompileAndExecute(passes string, diff int, outLocal bool) (float64, error) {
 	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
 		p.SourceCmd,
-		p.passMan.makeValid(seq),
-		diff, false,
+		passes,
+		diff, outLocal,
 	)
 	if err != nil {
 		// fmt.Printf("\n%v\n", err)
-		p.Results <- Result{
-			score:   util.MAX_FLOAT64,
-			passSeq: seq,
-		}
-		return
+		return 0.0, err
 	}
 	defer os.Remove(newFile.Name())
 
-	for begin := time.Now(); (time.Since(begin) < 5*p.approxTime ||
-		!MedianConfidence(scores, 0.05)) &&
-		time.Since(begin) < 12*p.approxTime; {
-
-		execution_t, memory_usage, err := testharness.RunFile(newFile, p.approxTime*12)
-		if err != nil {
-			p.Results <- Result{
-				score:   util.MAX_FLOAT64,
-				passSeq: seq,
-			}
-			return
-		}
-
-		heuristic := valueFromJobStats(compilation_t, execution_t, binary_size, memory_usage)
-
-		scores = append(scores, heuristic)
+	execution_t, maxrss, err := testharness.RunProgramUntilStable(newFile, p.approxTime)
+	if err != nil {
+		// fmt.Printf("\n%v\n", err)
+		return 0.0, err
 	}
+	finalScore := valueFromJobStats(compilation_t, time.Duration(execution_t), binary_size, maxrss)
 	newFile.Close()
 
-	p.cacheMutex.Lock()
-	p.cache[key] = util.Median(scores)
-	p.cacheMutex.Unlock()
-
-	p.Results <- Result{
-		score:   util.Median(scores),
-		passSeq: seq,
-	}
+	return finalScore, nil
 }
 
 // valueFromJobStats returns our heuristic value based upon the optimisation pipelines statistics.
@@ -154,4 +148,11 @@ func valueFromJobStats(compilation, execution time.Duration, size int, memory in
 		EXECUTION_WEIGHT*float64(execution.Microseconds()) +
 		BINARY_SIZE_WEIGHT*float64(size) +
 		MEMORY_USAGE_WEIGHT*float64(memory))
+}
+
+func (p *WorkerPool) queueErrorResult(seq []int) {
+	p.Results <- Result{
+		score:   util.MAX_FLOAT64,
+		passSeq: seq,
+	}
 }

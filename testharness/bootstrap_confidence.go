@@ -1,4 +1,4 @@
-package geneticalgorithm
+package testharness
 
 import (
 	"6CCS3PRJ/thomasholden/util"

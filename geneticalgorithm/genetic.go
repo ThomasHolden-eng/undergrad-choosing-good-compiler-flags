@@ -1,12 +1,10 @@
 package geneticalgorithm
 
 import (
-	"6CCS3PRJ/thomasholden/testharness"
 	"errors"
 	"math/rand"
 	"runtime"
 	"slices"
-	"time"
 
 	"github.com/google/shlex"           // Parsing logic should be exported as not part of the genetic algorithm
 	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
@@ -45,15 +43,13 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 
 	commandSplit, err := shlex.Split(command)
 	if err != nil {
-		return nil, errors.New("command lexing failed")
+		return nil, errors.New("command lexing failed: " + err.Error())
 	}
 
-	o3Time, err := testharness.GetSequenceExecutionTime(commandSplit, pop.passMan.makeValid(pop.members[0]), false)
+	pop.workers, err = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.passMan, pop.members[0])
 	if err != nil {
-		return nil, errors.New("failed basic execution, is the command formatted correctly?:\n" + err.Error())
+		return nil, err
 	}
-
-	pop.workers = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.passMan, o3Time)
 
 	return pop, nil
 }
@@ -201,11 +197,11 @@ func (p *Population) sortPop(results []Result) {
 }
 
 // Best returns the best performing population member's passes and execution time.
-func (p *Population) Best() (string, time.Duration, error) {
-	execTime, err := testharness.GetSequenceExecutionTime(p.workers.SourceCmd, p.passMan.makeValid(p.members[0]), true)
+func (p *Population) Best() (string, error) {
+	_, err := p.workers.CompileAndExecute(p.passMan.makeValid(p.members[0]), 0, true)
 	if err != nil {
-		return "", 0, errors.New("failed assessment of final product\n" + err.Error())
+		return "", errors.New("failed assessment of final product\n" + err.Error())
 	}
 
-	return p.passMan.makeValid(p.members[0]), execTime, nil
+	return p.passMan.makeValid(p.members[0]), nil
 }

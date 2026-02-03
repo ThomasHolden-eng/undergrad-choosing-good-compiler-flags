@@ -3,11 +3,10 @@ package testharness
 import (
 	"6CCS3PRJ/thomasholden/util"
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
+	"slices"
 	"time"
 )
 
@@ -125,56 +124,45 @@ func CompileFileWithPasses(compilationCommand []string, passes string, id int, o
 	return totalTime, binSize, binFile, nil
 }
 
-// Takes a file reference
-// Returns execution time, memory usage & error
-func RunFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, error) {
-	var stderr bytes.Buffer
+// RunProgramUntilStable returns the median execution time and maxrss of a file execution.
+func RunProgramUntilStable(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
+	var times []int64
+	var rsss []int64
 
-	ctx := context.Background()
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), maxDuration)
-	defer cancel()
+	i := 0
+	for begin := time.Now(); (i < 5 ||
+		!MedianConfidence(times, 0.03)) &&
+		time.Since(begin) < 12*approxTime; {
 
-	file.Chmod(0755)
-	cmd := exec.CommandContext(ctx, file.Name())
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return 0, 0, fmt.Errorf("execution failed: %w\nStderr: %s", err, stderr.String())
-	}
-
-	duration := cmd.ProcessState.UserTime().Microseconds()
-
-	// Will fail within windows
-	memUsage := func() int64 {
-		if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-			return usage.Maxrss
+		execution_t, rss, hash, err := runFile(toRun, approxTime*12)
+		if err != nil {
+			return util.MAX_FLOAT64, util.MAX_INT64, fmt.Errorf("execution failed: %v", err)
+		} else if hash != trueHash {
+			return util.MAX_FLOAT64, util.MAX_INT64, fmt.Errorf(
+				"execution out hash: %v\ntrue out hash: %v", hash, trueHash,
+			)
 		}
-		return 0
-	}()
 
-	totalTime := time.Duration(duration * int64(time.Microsecond))
-	return totalTime, memUsage, nil
+		times = append(times, int64(execution_t))
+		rsss = append(rsss, rss)
+		i++
+	}
+	return util.Median(times), slices.Max(rsss), nil
 }
 
-// GetSequenceExecutionTime returns only the execution time of a pass sequence.
-func GetSequenceExecutionTime(compilationCommand []string, passes string, outLocal bool) (time.Duration, error) {
-	_, _, f, err := CompileFileWithPasses(compilationCommand, passes, 0, outLocal)
-	defer os.Remove(f.Name())
-	defer f.Close() // defer is LIFO
-
+// GetSetBaselineStats returns the execution time for the baseline while setting the
+// ground truth hash value.
+func GetSetBaselineStats(compilationCommand []string, passes string) (time.Duration, error) {
+	trueHash, err := getExpectedHash(compilationCommand, passes)
 	if err != nil {
-		return time.Second, fmt.Errorf("compilation failure: %w", err)
+		return -time.Second, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err.Error())
+	}
+	setTrueHash(trueHash)
+
+	o3Time, err := getExpectedExecutionTime(compilationCommand, passes)
+	if err != nil {
+		return -time.Second, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err.Error())
 	}
 
-	timeList := make([]time.Duration, 3)
-	for i := range 3 {
-		execTime, _, err := RunFile(f, time.Hour*24)
-		if err != nil {
-			return time.Second, fmt.Errorf("execution failure: %w", err)
-		}
-		timeList[i] = execTime
-	}
-
-	return time.Duration(util.Median(timeList)), nil
+	return o3Time, nil
 }
