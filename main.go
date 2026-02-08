@@ -23,7 +23,7 @@ func main() {
 		fmt.Printf("ga error: %v\n", err)
 		return
 	}
-	gaPopulation.RunNGenerations(2)
+	gaPopulation.RunNGenerations(20)
 
 	seq, err := gaPopulation.Best()
 	if err != nil {

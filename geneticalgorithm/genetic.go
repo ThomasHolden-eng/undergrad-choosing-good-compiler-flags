@@ -1,6 +1,7 @@
 package geneticalgorithm
 
 import (
+	"6CCS3PRJ/thomasholden/util"
 	"errors"
 	"math/rand"
 	"runtime"
@@ -19,10 +20,9 @@ type Population struct {
 }
 
 const (
-	SAFE_POP   float64 = 0.2  // Proportion of population to apply reproduction & selection
-	REPRO_POP  float64 = 0.1  // Proportion of population to apply ONLY reproduction
-	RANDOM_POP float64 = 0.05 // Proportion of population to be randomly generated every generation
-) // The rest of the population will be generated via reproduction from among SAFE_POP & REPRO_POP
+	SAFE_POP       float64 = 0.3 // Proportion of population to apply reproduction & selection.
+	MUTATION_STEPS float64 = 1.1 // Number of times to run mutation (* population size).
+)
 
 var PBar *progressbar.ProgressBar // to be moved
 
@@ -33,7 +33,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 
 	pop := &Population{}
 	pop.members = make([][]int, size)
-	pop.passMan = NewPassManager()
+	pop.passMan = GetPassManager()
 	pop.maxLength = maxLength
 
 	pop.members[0] = pop.passMan.GetO3Int()
@@ -46,7 +46,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 		return nil, errors.New("command lexing failed: " + err.Error())
 	}
 
-	pop.workers, err = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.passMan, pop.members[0])
+	pop.workers, err = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.members[0])
 	if err != nil {
 		return nil, err
 	}
@@ -67,37 +67,62 @@ func (p *Population) generateRandomIntSlice() []int {
 
 // nextGeneration executes a single generation of the genetic algorithm.
 //
-// This is composed of execution -> elitism -> reproduction+mutation.
+// This is composed of execution -> elitism -> reproduction -> mutation.
 func (p *Population) nextGeneration() {
 	for _, member := range p.members {
 		p.workers.AddPassSequence(member)
 	}
 	results := p.workers.StartPool()
 	p.sortPop(results)
-
-	// fmt.Printf("\n\nResults: %+v\n\n", results)
-
 	p.members = make([][]int, 0, len(p.members))
 
 	safeMarker := int(SAFE_POP * float64(len(results)))
-	reproMarker := int((SAFE_POP + REPRO_POP) * float64(len(results)))
-	for i := range safeMarker {
-		p.members = append(p.members, slices.Clone(results[i].passSeq))
-	}
+	reproMarker := p.elitism(results, safeMarker)
 
-	for len(p.members) < cap(p.members) {
-		if rand.Float64() < RANDOM_POP {
-			p.members = append(p.members, p.generateRandomIntSlice())
-			continue
+	p.reproduction(reproMarker)
+
+	p.mutation(safeMarker)
+}
+
+// elitism selects the top k population members depending on results.
+func (p *Population) elitism(results []Result, marker int) int {
+	reproMarker := -1
+	for i := range marker {
+		if results[i].score < util.MAX_FLOAT64 {
+			p.members = append(p.members, slices.Clone(results[i].passSeq))
+			reproMarker = i
 		}
-		passPtr1 := rand.Int() % reproMarker
-		passPtr2 := rand.Int() % reproMarker
+	}
+	if reproMarker < 0 {
+		panic("error in GA: all sequences failing")
+	}
+	return reproMarker
+}
 
-		newSeq1, newSeq2 := p.reproduce(results[passPtr1].passSeq, results[passPtr2].passSeq)
+// reproduction fills the remaining population via reproduction among elites.
+func (p *Population) reproduction(marker int) {
+	for len(p.members) < cap(p.members) {
+		passPtr1 := rand.Int() % marker
+		passPtr2 := rand.Int() % marker
+
+		newSeq1, newSeq2 := reproduce(
+			p.members[passPtr1],
+			p.members[passPtr2],
+			p.maxLength,
+		)
 		p.members = append(p.members, newSeq1)
 		if len(p.members) < cap(p.members) {
 			p.members = append(p.members, newSeq2)
 		}
+	}
+}
+
+// reproduction fills the remaining population via reproduction among elites.
+func (p *Population) mutation(marker int) {
+	steps := int(float64(len(p.members)) * MUTATION_STEPS)
+	for range steps {
+		popPtr := int(rand.Float64()*float64(len(p.members)-marker)) + marker
+		mutate(p.members[popPtr], p.passMan.MaxPass, p.maxLength)
 	}
 }
 
@@ -107,81 +132,6 @@ func (p *Population) RunNGenerations(n int) {
 	for range n {
 		p.nextGeneration()
 	}
-}
-
-// reproduce enacts crossover between two population members (pass sequences).
-//
-// Currently implemented as one-point crossover.
-func (p *Population) reproduce(a, b []int) ([]int, []int) {
-	newA := slices.Clone(a)
-	newB := slices.Clone(b)
-
-	randF := rand.Float64()
-	if randF <= 0.6 {
-		newA, newB = p.randomCrossover(newA, newB)
-	} else {
-		p.mutate(newA)
-		p.mutate(newB)
-	}
-
-	if len(newA) > p.maxLength {
-		newA = slices.Delete(newA, p.maxLength, len(newA))
-	}
-	if len(newB) > p.maxLength {
-		newB = slices.Delete(newB, p.maxLength, len(newB))
-	}
-
-	return newA, newB
-}
-
-// mutate applies a random mutation to a single population member.
-func (p *Population) mutate(a []int) {
-	if len(a) == 0 {
-		newPass := rand.Int() % p.passMan.MaxPass
-		a[0] = newPass
-	}
-	point := rand.Int() % len(a)
-
-	randf := rand.Float64()
-	if randf < 0.33 {
-		newPass := rand.Int() % p.passMan.MaxPass
-		a[point] = newPass
-	} else if randf > 0.66 {
-		if point == 0 {
-			point = 1
-		}
-		a = append(a[:point-1], a[point:]...)
-	} else if len(a) < p.maxLength {
-		newPass := rand.Int() % p.passMan.MaxPass
-		a = slices.Insert(a, point, newPass)
-	} else {
-		if point == 0 {
-			point = 1
-		}
-		a = append(a[:point-1], a[point:]...)
-	}
-
-}
-
-// randomCrossover enacts one point crossover between two population members.
-func (p *Population) randomCrossover(a, b []int) ([]int, []int) {
-	var aPtr int
-	var bPtr int
-	if len(a) == 0 || len(b) == 0 { // avoid splitting at 0
-		p.mutate(a)
-		p.mutate(b)
-	}
-
-	aPtr = rand.Int() % (len(a))
-	bPtr = rand.Int() % (len(b))
-
-	aHead, aTail := slices.Clone(a[:aPtr]), slices.Clone(a[aPtr:])
-	bHead, bTail := slices.Clone(b[:bPtr]), slices.Clone(b[bPtr:])
-
-	newA := append(aHead, bTail...)
-	newB := append(bHead, aTail...)
-
-	return newA, newB
 }
 
 // sortPop sorts the population depending on their achieved results.

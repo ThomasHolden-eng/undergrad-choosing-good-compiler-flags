@@ -16,8 +16,18 @@ type PassManager struct {
 	loopRange     *util.Range[int]
 }
 
+var passManager *PassManager = nil
+
+// GetPassManager returns a PassManager singleton.
+func GetPassManager() *PassManager {
+	if passManager == nil {
+		passManager = newPassManager()
+	}
+	return passManager
+}
+
 // NewPassManager initializes and returns a PassManager pointer.
-func NewPassManager() *PassManager {
+func newPassManager() *PassManager {
 	manager := &PassManager{}
 	manager.init()
 	manager.loadPasses()

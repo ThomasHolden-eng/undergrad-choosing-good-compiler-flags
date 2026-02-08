@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/fnv"
 	"os"
 	"os/exec"
 	"regexp"
 	"slices"
 	"syscall"
 	"time"
+
+	"github.com/zeebo/xxh3"
 )
 
 // Extracts C-family filenames from a string.
 var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c))?`)
+
+// Used to validate program execution output.
 var trueHash uint64
 
 // getFileSize returns the size of a file.
@@ -95,10 +98,10 @@ func runFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, ui
 	}
 
 	duration := cmd.ProcessState.UserTime().Microseconds()
-	rawOut := append(stdout.Bytes(), stderr.Bytes()...)
-	outHasher := fnv.New64a()
-	outHasher.Write(rawOut)
-	fnvHash := outHasher.Sum64()
+
+	var hash uint64 = calculateHash(
+		stderr.Bytes(), stdout.Bytes(),
+	)
 
 	// Will fail within windows
 	memUsage := func() int64 {
@@ -109,9 +112,21 @@ func runFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, ui
 	}()
 
 	totalTime := time.Duration(duration * int64(time.Microsecond))
-	return totalTime, memUsage, fnvHash, nil
+	return totalTime, memUsage, hash, nil
 }
 
+// calculateHash returns a uint64 hash for any number of byte streams.
+func calculateHash(streams ...[]byte) uint64 {
+	hasher := xxh3.New()
+	for _, stream := range streams {
+		hasher.Write(stream)
+	}
+
+	return hasher.Sum64()
+}
+
+// setTrueHash assigns hash to package variable trueHash.
+// Used to calculate whether a programs output has been corrupted.
 func setTrueHash(hash uint64) {
 	trueHash = hash
 }

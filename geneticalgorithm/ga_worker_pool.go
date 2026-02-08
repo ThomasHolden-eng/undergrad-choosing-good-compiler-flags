@@ -12,19 +12,19 @@ import (
 
 // Result holds the results for a singular pass sequence's execution
 type Result struct {
-	score   float64
 	passSeq []int
+	score   float64
 }
 
 // WorkerPool provides functionality for pooling the execution of LLVM optimisation executions.
 type WorkerPool struct {
 	passSeq    [][]int
+	SourceCmd  []string // the command from which the project should be built
+	cache      util.Cache[string, float64]
 	fileNum    chan int
 	Results    chan Result // a channel containing all results
-	SourceCmd  []string    // the command from which the project should be built
 	passMan    *PassManager
 	approxTime time.Duration
-	cache      util.Cache[string, float64]
 }
 
 const (
@@ -37,7 +37,7 @@ const (
 )
 
 // NewWorkerPool returns a pointer to a worker pool.
-func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassManager, baseline []int) (*WorkerPool, error) {
+func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*WorkerPool, error) {
 	pool := new(WorkerPool)
 
 	pool.passSeq = make([][]int, 0, numJobs)
@@ -50,7 +50,7 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, passManager *PassMa
 
 	pool.SourceCmd = sourceCmd
 
-	pool.passMan = passManager
+	pool.passMan = GetPassManager()
 
 	pool.cache.Init()
 
@@ -92,8 +92,8 @@ func (p *WorkerPool) StartPool() []Result {
 
 // runJob executes a single pass sequences optimisation pipeline to obtain its resulting score.
 func (p *WorkerPool) runJob(seq []int, diff int) {
-	defer func() { p.fileNum <- diff }()
 	defer PBar.Add(1)
+	defer func() { p.fileNum <- diff }()
 
 	validSeq := p.passMan.makeValid(seq)
 
@@ -106,12 +106,11 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 	}
 
 	finalScore, err := p.CompileAndExecute(validSeq, diff, false)
+	defer p.cache.Set(validSeq, finalScore)
 	if err != nil {
 		p.queueErrorResult(seq)
 		return
 	}
-
-	p.cache.Set(validSeq, finalScore)
 
 	p.Results <- Result{
 		score:   finalScore,
@@ -127,14 +126,14 @@ func (p *WorkerPool) CompileAndExecute(passes string, diff int, outLocal bool) (
 	)
 	if err != nil {
 		// fmt.Printf("\n%v\n", err)
-		return 0.0, err
+		return util.MAX_FLOAT64, err
 	}
 	defer os.Remove(newFile.Name())
 
 	execution_t, maxrss, err := testharness.RunProgramUntilStable(newFile, p.approxTime)
 	if err != nil {
 		// fmt.Printf("\n%v\n", err)
-		return 0.0, err
+		return util.MAX_FLOAT64, err
 	}
 	finalScore := valueFromJobStats(compilation_t, time.Duration(execution_t), binary_size, maxrss)
 	newFile.Close()
