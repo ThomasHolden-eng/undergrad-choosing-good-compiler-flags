@@ -3,6 +3,7 @@ package geneticalgorithm
 import (
 	"6CCS3PRJ/thomasholden/util"
 	"errors"
+	"fmt"
 	"math/rand"
 	"runtime"
 	"slices"
@@ -20,15 +21,16 @@ type Population struct {
 }
 
 const (
-	SAFE_POP       float64 = 0.3 // Proportion of population to apply reproduction & selection.
-	MUTATION_STEPS float64 = 1.1 // Number of times to run mutation (* population size).
+	SAFE_POP       float64 = 0.25 // Proportion of population to apply reproduction & selection.
+	MUTATION_STEPS float64 = 1.1  // Number of times to run mutation (* population size).
 )
 
 var PBar *progressbar.ProgressBar // to be moved
 
 // CreatePopulation initialized a Population struct and its variables.
 func CreatePopulation(minPopSize, maxLength int, command string) (*Population, error) {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	workers := runtime.NumCPU() / 2
+	runtime.GOMAXPROCS(workers)
 	size := ((minPopSize / runtime.NumCPU()) + 1) * runtime.NumCPU()
 
 	pop := &Population{}
@@ -46,7 +48,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 		return nil, errors.New("command lexing failed: " + err.Error())
 	}
 
-	pop.workers, err = NewWorkerPool(commandSplit, runtime.NumCPU(), size, pop.members[0])
+	pop.workers, err = NewWorkerPool(commandSplit, workers, size, pop.members[0])
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +58,10 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 
 // generateRandomIntSlice returns a slice of ints within the pass range of length [1-p.maxLength].
 func (p *Population) generateRandomIntSlice() []int {
-	returnSlice := make([]int, 0, p.maxLength)
+	returnSlice := p.passMan.GetO3Int()
 
-	for i := 1.0; len(returnSlice) < p.maxLength && i > 1.0/float64(p.maxLength); i = rand.Float64() {
-		returnSlice = append(returnSlice, rand.Int()%(p.passMan.MaxPass))
+	for range rand.Intn(50) + 1 {
+		returnSlice = mutate(returnSlice, p.passMan.MaxPass, p.maxLength)
 	}
 
 	return slices.Clip(returnSlice)
@@ -74,6 +76,11 @@ func (p *Population) nextGeneration() {
 	}
 	results := p.workers.StartPool()
 	p.sortPop(results)
+	for i, result := range results {
+		if i < 10 {
+			fmt.Printf("\t%v\n", result)
+		}
+	}
 	p.members = make([][]int, 0, len(p.members))
 
 	safeMarker := int(SAFE_POP * float64(len(results)))
@@ -102,12 +109,13 @@ func (p *Population) elitism(results []Result, marker int) int {
 // reproduction fills the remaining population via reproduction among elites.
 func (p *Population) reproduction(marker int) {
 	for len(p.members) < cap(p.members) {
-		passPtr1 := rand.Int() % marker
-		passPtr2 := rand.Int() % marker
+		passPtr1 := rand.Int() % (marker + 1)
+		passPtr2 := rand.Int() % (marker + 1)
 
 		newSeq1, newSeq2 := reproduce(
 			p.members[passPtr1],
 			p.members[passPtr2],
+			p.passMan.MaxPass,
 			p.maxLength,
 		)
 		p.members = append(p.members, newSeq1)
@@ -122,7 +130,7 @@ func (p *Population) mutation(marker int) {
 	steps := int(float64(len(p.members)) * MUTATION_STEPS)
 	for range steps {
 		popPtr := int(rand.Float64()*float64(len(p.members)-marker)) + marker
-		mutate(p.members[popPtr], p.passMan.MaxPass, p.maxLength)
+		p.members[popPtr] = mutate(p.members[popPtr], p.passMan.MaxPass, p.maxLength)
 	}
 }
 
@@ -148,10 +156,5 @@ func (p *Population) sortPop(results []Result) {
 
 // Best returns the best performing population member's passes and execution time.
 func (p *Population) Best() (string, error) {
-	_, err := p.workers.CompileAndExecute(p.passMan.makeValid(p.members[0]), 0, true)
-	if err != nil {
-		return "", errors.New("failed assessment of final product\n" + err.Error())
-	}
-
 	return p.passMan.makeValid(p.members[0]), nil
 }

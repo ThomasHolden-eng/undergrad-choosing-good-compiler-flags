@@ -95,3 +95,21 @@ func NewRange[T Number](a, b T) *Range[T] {
 func (r *Range[T]) Within(n T) bool {
 	return r.start <= n && n <= r.end
 }
+
+// stressCoreOnChannel stresses a thread and exits when the exit channel is written to.
+//
+// Takes a channel on who's closure it will kill the thread, and memory usage in KB.
+func StressOnChannel(exit chan byte, memoryExpected int64) {
+	memoryExpected = max(1, memoryExpected)
+	// *500/707 approximates divsion by sqrt(2) to get a reasonable estimate for avg mem usage
+	size := memoryExpected * 1024 / 8 * 500 / 707 // *1024 to get to bytes, /8 for int64 size
+	buffer := make([]uint64, size)                // Uses around 128*8=1024 bytes
+	for ptr := int64(1); true; ptr++ {
+		select {
+		case <-exit:
+			return
+		default:
+			buffer[ptr%size] ^= buffer[(ptr-1)%size]*31 + 99
+		}
+	}
+}

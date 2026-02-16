@@ -5,7 +5,6 @@ import (
 	"6CCS3PRJ/thomasholden/util"
 	"fmt"
 
-	"os"
 	"sync"
 	"time"
 )
@@ -25,6 +24,7 @@ type WorkerPool struct {
 	Results    chan Result // a channel containing all results
 	passMan    *PassManager
 	approxTime time.Duration
+	approxMem  int64
 }
 
 const (
@@ -53,14 +53,16 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 	pool.passMan = GetPassManager()
 
 	pool.cache.Init()
+	pool.approxTime = time.Hour * 24
 
 	validO3 := pool.passMan.makeValid(baseline)
-	o3Time, err := testharness.GetSetBaselineStats(sourceCmd, validO3)
+	o3Time, o3MaxRSS, err := testharness.GetSetBaselineStats(sourceCmd, validO3, pool.manageCPULoad)
 	if err != nil {
 		return nil, err
 	}
 
 	pool.approxTime = o3Time
+	pool.approxMem = o3MaxRSS
 	fmt.Printf("\nO3 Time: %v\n", o3Time)
 	pool.cache.Set(validO3, valueFromJobStats(0, o3Time, 0, 0))
 
@@ -80,8 +82,10 @@ func (p *WorkerPool) StartPool() []Result {
 	p.Results = make(chan Result, len(p.passSeq))
 
 	for _, seq := range p.passSeq {
-		wg.Go(func() { p.runJob(seq, <-p.fileNum) })
+		wg.Go(func() { p.runJob(seq, <-p.fileNum, false) })
 	}
+
+	p.manageCPULoad(&wg)
 
 	wg.Wait()
 
@@ -90,14 +94,24 @@ func (p *WorkerPool) StartPool() []Result {
 	return util.ArrayFromChannel(p.Results)
 }
 
+// manageCPULoad handles dynamically adding workers to maintain CPU load towards the
+// end of the pool's duration.
+func (p *WorkerPool) manageCPULoad(wg *sync.WaitGroup) {
+	for range cap(p.fileNum) - 1 {
+		wg.Go(func() { p.runJob([]int{}, <-p.fileNum, true) })
+	}
+}
+
 // runJob executes a single pass sequences optimisation pipeline to obtain its resulting score.
-func (p *WorkerPool) runJob(seq []int, diff int) {
-	defer PBar.Add(1)
+func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
+	if !dummy {
+		defer PBar.Add(1)
+	}
 	defer func() { p.fileNum <- diff }()
 
 	validSeq := p.passMan.makeValid(seq)
 
-	if score, ok := p.cache.Get(validSeq); ok {
+	if score, ok := p.cache.Get(validSeq); ok && !dummy {
 		p.Results <- Result{
 			score:   score,
 			passSeq: seq,
@@ -105,40 +119,17 @@ func (p *WorkerPool) runJob(seq []int, diff int) {
 		return
 	}
 
-	finalScore, err := p.CompileAndExecute(validSeq, diff, false)
+	compilation_t, execution_t, binary_size, maxrss, err := testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd, p.approxTime)
+	finalScore := valueFromJobStats(compilation_t, time.Duration(execution_t), binary_size, maxrss)
 	defer p.cache.Set(validSeq, finalScore)
 	if err != nil {
 		p.queueErrorResult(seq)
-		return
+	} else if !dummy {
+		p.Results <- Result{
+			score:   finalScore,
+			passSeq: seq,
+		}
 	}
-
-	p.Results <- Result{
-		score:   finalScore,
-		passSeq: seq,
-	}
-}
-
-func (p *WorkerPool) CompileAndExecute(passes string, diff int, outLocal bool) (float64, error) {
-	compilation_t, binary_size, newFile, err := testharness.CompileFileWithPasses(
-		p.SourceCmd,
-		passes,
-		diff, outLocal,
-	)
-	if err != nil {
-		// fmt.Printf("\n%v\n", err)
-		return util.MAX_FLOAT64, err
-	}
-	defer os.Remove(newFile.Name())
-
-	execution_t, maxrss, err := testharness.RunProgramUntilStable(newFile, p.approxTime)
-	if err != nil {
-		// fmt.Printf("\n%v\n", err)
-		return util.MAX_FLOAT64, err
-	}
-	finalScore := valueFromJobStats(compilation_t, time.Duration(execution_t), binary_size, maxrss)
-	newFile.Close()
-
-	return finalScore, nil
 }
 
 // valueFromJobStats returns our heuristic value based upon the optimisation pipelines statistics.
@@ -149,6 +140,7 @@ func valueFromJobStats(compilation, execution time.Duration, size int, memory in
 		MEMORY_USAGE_WEIGHT*float64(memory))
 }
 
+// queueErrorResult adds a result to the Result channel indicating sequence failure.
 func (p *WorkerPool) queueErrorResult(seq []int) {
 	p.Results <- Result{
 		score:   util.MAX_FLOAT64,

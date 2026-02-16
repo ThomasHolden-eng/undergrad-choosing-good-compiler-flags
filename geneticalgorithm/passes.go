@@ -450,6 +450,10 @@ func (pm *PassManager) makeValid(seq []int) string {
 		LOOPTEXT  string = "function<eager-inv>(loop("
 	)
 
+	if len(seq) == 0 {
+		return ""
+	}
+
 	getClosing := func(scope byte) string {
 		if scope == INFUNC {
 			return ")"

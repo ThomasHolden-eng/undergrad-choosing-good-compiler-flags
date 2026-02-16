@@ -6,10 +6,11 @@ import (
 )
 
 // mutate applies a random mutation to a single population member.
-func mutate(a []int, maxVal, maxLen int) {
+func mutate(a []int, maxVal, maxLen int) []int {
 	if len(a) == 0 {
 		newPass := rand.Int() % maxVal
-		a[0] = newPass
+		a = append(a, newPass)
+		return a
 	}
 	point := rand.Int() % len(a)
 
@@ -27,4 +28,6 @@ func mutate(a []int, maxVal, maxLen int) {
 		}
 		a = append(a[:point-1], a[point:]...)
 	}
+
+	return a
 }
