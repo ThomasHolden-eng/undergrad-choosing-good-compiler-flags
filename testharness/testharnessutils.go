@@ -187,6 +187,7 @@ func compileFileWithPasses(compilationCommand []string, passes string, id int, o
 	binName := binFile.Name()
 	binFile.Close()
 
+	// Extract input files as a list of strings
 	filesToOptimise := extractInputFiles(compilationCommand)
 
 	var intermediaryFiles []string
@@ -201,6 +202,7 @@ func compileFileWithPasses(compilationCommand []string, passes string, id int, o
 	}
 
 	var stderr bytes.Buffer
+	// Extract flags as a list of strings
 	flags := extractFlags(compilationCommand)
 	for i := range filesToOptimise {
 		stderr.Reset()
@@ -248,7 +250,7 @@ func compileFileWithPasses(compilationCommand []string, passes string, id int, o
 	newCommand := mapInputFilesToBC(compilationCommand, intermediaryFiles)
 
 	newCommand = append(newCommand, "-O3", "-Xclang", "-disable-llvm-passes",
-		"-Xclang", "-disable-llvm-optzns")
+		"-Xclang", "-disable-llvm-optzns") // applies O3 optimisations without running passes
 
 	if outLocal {
 		localCmd := exec.Command(newCommand[0], newCommand[1:]...)
@@ -290,9 +292,9 @@ func runProgramUntilStable(toRun *os.File, approxTime time.Duration) (float64, i
 	var rsss []int64
 
 	i := 0
-	for begin := time.Now(); (i < 5 ||
-		!MedianConfidence(times, 0.03)) &&
-		time.Since(begin) < 12*approxTime; {
+	for begin := time.Now(); (i < 5 || // run at least 5 times
+		!MedianConfidence(times, 0.03)) && // median is within 3%
+		time.Since(begin) < 12*approxTime; { // run for at most 12*o3 time
 
 		execution_t, rss, hash, err := runFile(toRun, approxTime*12)
 		if err != nil {

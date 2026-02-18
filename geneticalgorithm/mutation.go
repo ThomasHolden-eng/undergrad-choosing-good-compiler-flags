@@ -26,10 +26,7 @@ func mutate(a []int, maxVal, maxLen int) []int {
 		a = slices.Insert(a, point, newPass)
 
 	} else { // Remove pass
-		if point == 0 {
-			point = 1
-		}
-		a = append(a[:point-1], a[point:]...)
+		a = append(a[:point], a[point+1:]...)
 	}
 
 	return a

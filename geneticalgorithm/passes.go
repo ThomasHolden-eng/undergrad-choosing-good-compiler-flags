@@ -52,6 +52,7 @@ func (pm *PassManager) loadPasses() {
 	pm.initRanges()
 }
 
+// initRanges initialises the pass ranges
 func (pm *PassManager) initRanges() {
 	pm.moduleRange = util.NewRange(
 		*pm.Get("always-inline"),
@@ -454,6 +455,7 @@ func (pm *PassManager) makeValid(seq []int) string {
 		return ""
 	}
 
+	// getClosing returns the closing string for the current scope
 	getClosing := func(scope byte) string {
 		if scope == INFUNC {
 			return ")"
