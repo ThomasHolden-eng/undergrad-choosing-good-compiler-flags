@@ -15,15 +15,17 @@ import (
 
 // Population manages the genomes of the genetic algorithm.
 type Population struct {
-	members   [][]int      // slices of int slices, where each int slice is a pass sequence.
-	passMan   *PassManager // pointer to a PassManager.
-	maxLength int          // the maximum length of any genome at any given time.
-	workers   *WorkerPool  // pointer to a pool of parallelised workers.
+	members     [][]int      // slices of int slices, where each int slice is a pass sequence.
+	passMan     *PassManager // pointer to a PassManager.
+	maxLength   int          // the maximum length of any genome at any given time.
+	workers     *WorkerPool  // pointer to a pool of parallelised workers.
+	lastSafePop []int        // copy of the last safe population member for comparison.
+	convCount   int          // counter to track steps without improvement.
 }
 
 const (
 	SAFE_POP       float64 = 0.25 // Proportion of population to apply reproduction & selection.
-	MUTATION_STEPS float64 = 1.1  // Number of times to run mutation (* population size).
+	MUTATION_STEPS float64 = 1.2  // Number of times to run mutation (* population size).
 )
 
 var PBar *progressbar.ProgressBar // to be moved
@@ -38,6 +40,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 	pop.members = make([][]int, size)
 	pop.passMan = GetPassManager()
 	pop.maxLength = maxLength
+	pop.lastSafePop = []int{}
 
 	pop.members[0] = pop.passMan.GetO3Int()
 	for i := range len(pop.members) - 1 {
@@ -71,7 +74,7 @@ func (p *Population) generateRandomIntSlice() []int {
 // nextGeneration executes a single generation of the genetic algorithm.
 //
 // This is composed of execution -> elitism -> reproduction -> mutation.
-func (p *Population) nextGeneration() {
+func (p *Population) nextGeneration() bool {
 	for _, member := range p.members {
 		p.workers.AddPassSequence(member)
 	}
@@ -90,6 +93,8 @@ func (p *Population) nextGeneration() {
 	p.reproduction(reproMarker)
 
 	p.mutation(safeMarker)
+
+	return p.testConvergence()
 }
 
 // elitism selects the top k population members depending on results.
@@ -136,11 +141,16 @@ func (p *Population) mutation(marker int) {
 }
 
 // RunNGenerations executes nextGeneration n times.
-func (p *Population) RunNGenerations(n int) {
-	PBar = progressbar.Default(int64(n) * int64(cap(p.members)))
-	for range n {
-		p.nextGeneration()
+func (p *Population) RunNGenerations(n int) int {
+	PBar = progressbar.Default(-1)
+	for i := range n {
+		converged := p.nextGeneration()
+
+		if converged {
+			return i + 1
+		}
 	}
+	return n
 }
 
 // sortPop sorts the population depending on their achieved results.
@@ -153,6 +163,24 @@ func (p *Population) sortPop(results []Result) {
 		}
 		return 0
 	})
+}
+
+// testConvergence evaluates whether the population has converged yet.
+//
+// This is decided based on whether the top population member has improved over 10 generations.
+func (p *Population) testConvergence() bool {
+	safeMarker := int(SAFE_POP * float64(len(p.members)))
+	safeMarker = max(safeMarker-1, 0)
+	currentSafePop := p.members[safeMarker]
+
+	if slices.Equal(p.lastSafePop, currentSafePop) {
+		p.convCount += 1
+	} else {
+		p.convCount = 0
+	}
+	p.lastSafePop = append([]int{}, currentSafePop...)
+
+	return p.convCount >= 5
 }
 
 // Best returns the best performing population member's passes and execution time.

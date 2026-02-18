@@ -17,10 +17,21 @@ func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc f
 	setTrueHash(trueHash)
 	fmt.Print("Successfully compiled -O3 ")
 
+	done := make(chan byte)
 	for range workers - 1 {
-		go noiseFunc()
+		go func() {
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					noiseFunc()
+				}
+			}
+		}()
 	}
 	o3Time, err := getExpectedExecutionStats(compilationCommand, passes)
+	close(done)
 	if err != nil {
 		return -time.Second, 0, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err.Error())
 	}

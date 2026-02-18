@@ -23,7 +23,7 @@ func main() {
 		fmt.Printf("ga error: %v\n", err)
 		return
 	}
-	gaPopulation.RunNGenerations(30)
+	generations := gaPopulation.RunNGenerations(100)
 
 	seq, err := gaPopulation.Best()
 	if err != nil {
@@ -31,4 +31,5 @@ func main() {
 		return
 	}
 	fmt.Printf("%s\n", seq)
+	fmt.Printf("Converged in %d generations.\n", generations)
 }

@@ -16,7 +16,10 @@ func mutate(a []int, maxVal, maxLen int) []int {
 
 	randf := rand.Float64()
 	if randf < 0.33 { // Replace pass
-		newPass := rand.Int() % maxVal
+		newPass := a[point]
+		for newPass == a[point] {
+			newPass = rand.Int() % maxVal
+		}
 		a[point] = newPass
 	} else if randf > 0.66 && len(a) < maxLen { // Add pass
 		newPass := rand.Int() % maxVal
