@@ -56,7 +56,13 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 	pool.approxTime = time.Hour * 24
 
 	validO3 := pool.passMan.makeValid(baseline)
-	o3Time, o3MaxRSS, err := testharness.GetSetBaselineStats(sourceCmd, validO3, pool.manageCPULoad)
+	o3Time, o3MaxRSS, err := testharness.GetSetBaselineStats(sourceCmd, validO3,
+		func() {
+			fileNum := <-pool.fileNum
+			defer func() { pool.fileNum <- fileNum }()
+			pool.runJob([]int{}, fileNum, true)
+		},
+		workers)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +88,8 @@ func (p *WorkerPool) StartPool() []Result {
 	p.Results = make(chan Result, len(p.passSeq))
 
 	for _, seq := range p.passSeq {
-		wg.Go(func() { p.runJob(seq, <-p.fileNum, false) })
+		fileNum := <-p.fileNum
+		wg.Go(func() { p.runJob(seq, fileNum, false) })
 	}
 
 	p.manageCPULoad(&wg)
@@ -97,8 +104,12 @@ func (p *WorkerPool) StartPool() []Result {
 // manageCPULoad handles dynamically adding workers to maintain CPU load towards the
 // end of the pool's duration.
 func (p *WorkerPool) manageCPULoad(wg *sync.WaitGroup) {
-	for range cap(p.fileNum) - 1 {
-		wg.Go(func() { p.runJob([]int{}, <-p.fileNum, true) })
+	for len(p.Results) != cap(p.Results) {
+		fileNum := <-p.fileNum
+		wg.Go(func() {
+			defer func() { p.fileNum <- fileNum }()
+			p.runJob([]int{}, fileNum, true)
+		})
 	}
 }
 
@@ -106,8 +117,8 @@ func (p *WorkerPool) manageCPULoad(wg *sync.WaitGroup) {
 func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
 	if !dummy {
 		defer PBar.Add(1)
+		defer func() { p.fileNum <- diff }()
 	}
-	defer func() { p.fileNum <- diff }()
 
 	validSeq := p.passMan.makeValid(seq)
 

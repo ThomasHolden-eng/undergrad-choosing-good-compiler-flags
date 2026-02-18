@@ -4,13 +4,12 @@ import (
 	"6CCS3PRJ/thomasholden/util"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 )
 
 // GetSetBaselineStats returns the execution time and memory usage for the baseline while setting the
 // ground truth hash value.
-func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc func(*sync.WaitGroup)) (time.Duration, int64, error) {
+func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc func(), workers int) (time.Duration, int64, error) {
 	trueHash, mem, err := getExpectedHash(compilationCommand, passes)
 	if err != nil {
 		return -time.Second, 0, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err.Error())
@@ -18,14 +17,14 @@ func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc f
 	setTrueHash(trueHash)
 	fmt.Print("Successfully compiled -O3 ")
 
-	var wg sync.WaitGroup
-	go noiseFunc(&wg)
+	for range workers - 1 {
+		go noiseFunc()
+	}
 	o3Time, err := getExpectedExecutionStats(compilationCommand, passes)
 	if err != nil {
 		return -time.Second, 0, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err.Error())
 	}
 	fmt.Println(": Successfully executed -O3, waiting on noise.")
-	wg.Wait()
 
 	return o3Time, mem, nil
 }

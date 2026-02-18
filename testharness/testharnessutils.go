@@ -292,7 +292,7 @@ func runProgramUntilStable(toRun *os.File, approxTime time.Duration) (float64, i
 	i := 0
 	for begin := time.Now(); (i < 5 ||
 		!MedianConfidence(times, 0.03)) &&
-		time.Since(begin) < 5*approxTime; {
+		time.Since(begin) < 12*approxTime; {
 
 		execution_t, rss, hash, err := runFile(toRun, approxTime*12)
 		if err != nil {

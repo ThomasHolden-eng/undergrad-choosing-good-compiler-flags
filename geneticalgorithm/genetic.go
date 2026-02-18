@@ -1,6 +1,7 @@
 package geneticalgorithm
 
 import (
+	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
 	"errors"
 	"fmt"
@@ -156,5 +157,7 @@ func (p *Population) sortPop(results []Result) {
 
 // Best returns the best performing population member's passes and execution time.
 func (p *Population) Best() (string, error) {
-	return p.passMan.makeValid(p.members[0]), nil
+	validOptimal := p.passMan.makeValid(p.members[0])
+	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd, p.workers.approxTime)
+	return validOptimal, err
 }
