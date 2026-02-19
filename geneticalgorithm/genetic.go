@@ -64,7 +64,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 func (p *Population) generateRandomIntSlice() []int {
 	returnSlice := p.passMan.GetO3Int()
 
-	for range rand.Intn(50) + 1 {
+	for range rand.Intn(len(returnSlice)) + 1 {
 		returnSlice = mutate(returnSlice, p.passMan.MaxPass, p.maxLength)
 	}
 
@@ -146,7 +146,7 @@ func (p *Population) RunNGenerations(n int) int {
 	for i := range n {
 		converged := p.nextGeneration()
 
-		if converged {
+		if converged && i > 10 {
 			return i + 1
 		}
 	}
