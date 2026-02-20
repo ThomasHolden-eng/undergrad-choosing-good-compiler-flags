@@ -52,7 +52,7 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 
 	pool.passMan = GetPassManager()
 
-	pool.cache.Init(128)
+	pool.cache.Init(256)
 	pool.approxTime = time.Hour * 24
 
 	validO3 := pool.passMan.makeValid(baseline)
