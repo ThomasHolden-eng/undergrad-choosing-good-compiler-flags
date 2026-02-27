@@ -29,7 +29,6 @@ func GetPassManager() *PassManager {
 // NewPassManager initializes and returns a PassManager pointer.
 func newPassManager() *PassManager {
 	manager := &PassManager{}
-	manager.init()
 	manager.loadPasses()
 
 	return manager
@@ -42,7 +41,7 @@ func (pm *PassManager) loadPasses() {
 
 	assignments := 0
 	for _, pass := range passList {
-		if _, ok := pm.direct[pass]; !ok {
+		if _, ok := pm.direct[pass]; !ok { // If the pass is not already in the map
 			pm.Put(pass, assignments)
 			assignments++
 		}

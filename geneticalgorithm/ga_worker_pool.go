@@ -131,11 +131,14 @@ func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
 	}
 
 	compilation_t, execution_t, binary_size, maxrss, err := (testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd, p.approxTime))
+	if dummy {
+		return
+	}
 	finalScore := valueFromJobStats(compilation_t, time.Duration(execution_t), binary_size, maxrss)
 	defer p.cache.Set(validSeq, finalScore) // Update our mapped cache with the score achieved for the sequence
 	if err != nil {
 		p.queueErrorResult(seq)
-	} else if !dummy {
+	} else {
 		p.Results <- Result{
 			score:   finalScore,
 			passSeq: seq,

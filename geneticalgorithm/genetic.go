@@ -43,6 +43,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 	pop.lastSafePop = []int{}
 
 	pop.members[0] = pop.passMan.GetO3Int()
+	pop.members[0] = pop.members[0][:min(len(pop.members[0]), maxLength)]
 	for i := range len(pop.members) - 1 {
 		pop.members[i+1] = pop.generateRandomIntSlice()
 	}
@@ -63,6 +64,10 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 // generateRandomIntSlice returns a slice of ints within the pass range of length [1-p.maxLength].
 func (p *Population) generateRandomIntSlice() []int {
 	returnSlice := p.passMan.GetO3Int()
+	returnSlice = returnSlice[:min(len(returnSlice), p.maxLength)]
+	if p.maxLength <= 0 {
+		return returnSlice
+	}
 
 	for range rand.Intn(len(returnSlice)) + 1 {
 		returnSlice = mutate(returnSlice, p.passMan.MaxPass, p.maxLength)
@@ -131,11 +136,11 @@ func (p *Population) reproduction(marker int) {
 	}
 }
 
-// reproduction fills the remaining population via reproduction among elites.
+// mutation applies a random mutation to the reproduced population.
 func (p *Population) mutation(marker int) {
 	steps := int(float64(len(p.members)) * MUTATION_STEPS)
 	for range steps {
-		popPtr := int(rand.Float64()*float64(len(p.members)-marker)) + marker
+		popPtr := rand.Intn(len(p.members)-marker-1) + marker + 1
 		p.members[popPtr] = mutate(p.members[popPtr], p.passMan.MaxPass, p.maxLength)
 	}
 }

@@ -137,12 +137,12 @@ func setTrueHash(hash uint64) {
 // As a byproduct also returns memory usage.
 func getExpectedHash(compilationCommand []string, passes string) (uint64, int64, error) {
 	_, _, f, err := compileFileWithPasses(compilationCommand, passes, 0, false)
-	defer os.Remove(f.Name())
-	defer f.Close() // defer is LIFO
-
 	if err != nil {
 		return 0, 0, fmt.Errorf("compilation failure: %w", err)
 	}
+
+	defer os.Remove(f.Name())
+	defer f.Close() // defer is LIFO
 
 	_, mem, hash, err := runFile(f, time.Hour*24)
 	if err != nil {

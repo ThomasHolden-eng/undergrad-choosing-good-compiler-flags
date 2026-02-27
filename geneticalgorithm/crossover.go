@@ -7,22 +7,17 @@ import (
 
 // reproduce enacts crossover between two population members (pass sequences).
 func reproduce(a, b []int, maxVal, maxLen int) ([]int, []int) {
-	if len(a) == 0 || len(b) == 0 { // avoid splitting at 0
-		return a, b
-	}
-
 	var newA, newB []int
-
 	randNum := rand.Int() % 5
-	if randNum < 3 && !slices.Equal(a, b) {
+
+	if len(a) == 0 || len(b) == 0 { // avoid splitting at 0
+		newA, newB = pairMutate(a, b, maxVal, maxLen)
+	} else if randNum < 3 && !slices.Equal(a, b) {
 		newA, newB = lcsCrossover(a, b)
 	} else if randNum == 3 || slices.Equal(a, b) {
 		newA, newB = twoPointCrossover(a, b)
 	} else {
-		newA = slices.Clone(a)
-		newB = slices.Clone(b)
-		newA = mutate(newA, maxVal, maxLen)
-		newB = mutate(newB, maxVal, maxLen)
+		newA, newB = pairMutate(a, b, maxVal, maxLen)
 	}
 
 	if len(newA) > maxLen {
@@ -31,6 +26,16 @@ func reproduce(a, b []int, maxVal, maxLen int) ([]int, []int) {
 	if len(newB) > maxLen {
 		newB = slices.Delete(newB, maxLen, len(newB))
 	}
+
+	return newA, newB
+}
+
+// pairMutate returns mutated versions of the input slices.
+func pairMutate(a, b []int, maxVal, maxLen int) ([]int, []int) {
+	newA := slices.Clone(a)
+	newB := slices.Clone(b)
+	newA = mutate(newA, maxVal, maxLen)
+	newB = mutate(newB, maxVal, maxLen)
 
 	return newA, newB
 }
@@ -45,8 +50,8 @@ func onePointCrossover(a, b []int) ([]int, []int) {
 	var bPtr int
 	var newA, newB []int
 
-	aPtr = rand.Int() % (len(a))
-	bPtr = rand.Int() % (len(b))
+	aPtr = rand.Int()%(len(a)-2) + 1
+	bPtr = rand.Int()%(len(b)-2) + 1
 
 	newA = append(newA, a[:aPtr]...)
 	newA = append(newA, b[bPtr:]...)
@@ -69,11 +74,11 @@ func twoPointCrossover(a, b []int) ([]int, []int) {
 	var bPtrEnd int
 	var newA, newB []int
 
-	aPtrStart = rand.Int() % (len(a))
-	aPtrEnd = rand.Int()%(len(a)-aPtrStart) + aPtrStart
+	aPtrStart = rand.Int()%(len(a)-2) + 1
+	aPtrEnd = rand.Int()%(len(a)-aPtrStart-1) + 1 + aPtrStart
 
-	bPtrStart = rand.Int() % (len(b))
-	bPtrEnd = rand.Int()%(len(b)-bPtrStart) + bPtrStart
+	bPtrStart = rand.Int()%(len(b)-2) + 1
+	bPtrEnd = rand.Int()%(len(b)-bPtrStart-1) + 1 + bPtrStart
 
 	newA = append(newA, a[:aPtrStart]...)
 	newA = append(newA, b[bPtrStart:bPtrEnd]...)
@@ -97,6 +102,9 @@ func lcsCrossover(a, b []int) ([]int, []int) {
 	}
 
 	matchedIdxsA, matchedIdxsB := lcsPairs(a, b)
+	if len(matchedIdxsA) == 0 || len(matchedIdxsB) == 0 {
+		return twoPointCrossover(a, b)
+	}
 	var newA, newB []int
 
 	var prevA, prevB, currA, currB int

@@ -10,7 +10,7 @@ func mutate(a []int, maxVal, maxLen int) []int {
 	if len(a) == 0 {
 		newPass := rand.Int() % maxVal
 		a = append(a, newPass)
-		return a
+		return a[:min(len(a), maxLen)]
 	}
 	point := rand.Int() % len(a)
 
