@@ -13,6 +13,8 @@ type Cache[K, V comparable] struct {
 
 // Initialises the map components.
 func (c *Cache[K, V]) Init(size int) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.cache == nil {
 		c.cache = make(map[K]V)
 		c.queue = make([]K, size)
@@ -42,7 +44,7 @@ func (c *Cache[K, V]) Set(key K, value V) {
 }
 
 func (c *Cache[K, V]) enqueue(key K) {
-	if len(c.cache) == cap(c.queue) {
+	if len(c.cache) > cap(c.queue) {
 		keyToRemove := c.queue[c.queueFirstPtr]
 		delete(c.cache, keyToRemove)
 		c.queueFirstPtr = (c.queueFirstPtr + 1) % cap(c.queue)

@@ -21,7 +21,7 @@ var cFileRegex *regexp.Regexp = regexp.MustCompile(`\w+?\.c(?:(?:pp)|(?:xx)|(?:c
 // Used to validate program execution output.
 var trueHash uint64
 
-// getFileSize returns the size of a file.
+// getFileSize returns the size of a file in bytes.
 func getFileSize(file *os.File) (int, error) {
 	stat, err := file.Stat()
 	if err != nil {
@@ -80,7 +80,9 @@ func mapInputFilesToBC(cmd []string, bcFiles []string) []string {
 
 // Takes a file reference
 // Returns execution time, memory usage, hash & error
-func runFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, uint64, error) {
+//
+// Defined as a variable function for testing purposes.
+var runFile = func(file *os.File, maxDuration time.Duration) (time.Duration, int64, uint64, error) {
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
 
@@ -109,7 +111,7 @@ func runFile(file *os.File, maxDuration time.Duration) (time.Duration, int64, ui
 		if usage, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
 			return usage.Maxrss
 		}
-		return 0
+		return util.MAX_INT64
 	}()
 
 	totalTime := time.Duration(duration * int64(time.Microsecond))
@@ -170,12 +172,13 @@ func getExpectedExecutionStats(compilationCommand []string, passes string) (time
 	return time.Duration(timeTaken), nil
 }
 
-// compileFileWithPasses takes a file reference, pass list & unique id
+// compileFileWithPasses takes a file reference, pass list & unique id.
 //
-// Returns compilation time, binary size, file reference & error
+// Returns compilation time, binary size, file reference & error.
 //
-// Caller must resolve returned executable reference (close and delete)
-func compileFileWithPasses(compilationCommand []string, passes string, id int, outLocal bool) (time.Duration, int, *os.File, error) {
+// Caller must resolve returned executable reference (close and delete).
+// Defined as a variable function for testing purposes.
+var compileFileWithPasses = func(compilationCommand []string, passes string, id int, outLocal bool) (time.Duration, int, *os.File, error) {
 	if len(compilationCommand) == 0 {
 		return 0, 0, nil, fmt.Errorf("empty command passed")
 	}
@@ -287,7 +290,9 @@ func compileFileWithPasses(compilationCommand []string, passes string, id int, o
 }
 
 // runProgramUntilStable returns the median execution time and maxrss of a file execution.
-func runProgramUntilStable(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
+//
+// Defined as a variable function for testing purposes.
+var runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
 	var times []int64
 	var rsss []int64
 

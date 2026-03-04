@@ -13,7 +13,7 @@ func MedianConfidence[T util.Number](list []T, threshold float64) bool {
 // estimateRSE provides a value for the relative standard error of a slice w.r.t the median.
 //
 // We approximate sample σ, s with the formula: s ≈ IQR / 1.35 ≈ IQR * 0.74 [1]
-// Then use the formula: σ^2 = 1/(4*n*f(m)^2) [2] for the populate variation
+// Then use the formula: σ^2 = 1/(4*n*f(m)^2) [2] for the population variation
 // and find population σ = 1/(2*sqrt(n)*f(m)). Using that f(m) = 1/sqrt(2*π*s^2),
 // σ = sqrt(2*π*s^2)/(2*sqrt(n)) = sqrt(π)*s/sqrt(2*n) = sqrt(π/2) * s/sqrt(n)
 //
@@ -32,6 +32,13 @@ func estimateMedianRSE[T util.Number](list []T) float64 {
 		ratioDotFmMedianSqrt float64 = ratio * fmMedianSqrt
 	)
 
+	iqr := util.IQR(list) // Cannot be negative
+	median := math.Abs(util.Median(list))
 	sqrtN := math.Sqrt(float64(len(list)))
-	return (ratioDotFmMedianSqrt * util.IQR(list)) / (sqrtN * util.Median(list))
+
+	if median <= 1 { // Edge case wherein we just return σ of the sampling distribution
+		return (ratioDotFmMedianSqrt * iqr) / sqrtN
+	}
+
+	return (ratioDotFmMedianSqrt * iqr) / (sqrtN * median)
 }
