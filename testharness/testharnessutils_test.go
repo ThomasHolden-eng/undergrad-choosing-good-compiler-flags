@@ -25,6 +25,7 @@ func TestGetFileSize(t *testing.T) {
 	tmpFile.Write(bytesToWrite)
 
 	deletedFile, _ := os.CreateTemp("", "testharness_*.bin")
+	deletedFile.Close()
 	os.Remove(deletedFile.Name())
 
 	tests := []struct {
@@ -55,9 +56,11 @@ func TestGetFileSize(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			size, err := getFileSize(test.file)
-			if err != nil && !test.errorExpected {
-				t.Errorf("failed to get file size: %v", err)
-			} else if size != test.sizeExpected {
+			if err == nil && test.errorExpected {
+				t.Errorf("expected to fail getting file size")
+			} else if err != nil && !test.errorExpected {
+				t.Errorf("failed to get file size unexpectedly: %v", err)
+			} else if err == nil && size != test.sizeExpected {
 				t.Errorf("got file size of %d, but expected %d", size, test.sizeExpected)
 			}
 		})
@@ -525,6 +528,12 @@ func TestRunProgramUntilStable(t *testing.T) {
 	}
 	defer os.Remove(validFile.Name())
 
+	invalidFile, err := createShellScriptWithOutput("failure")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(validFile.Name())
+
 	tests := []struct {
 		name          string
 		file          *os.File
@@ -540,6 +549,11 @@ func TestRunProgramUntilStable(t *testing.T) {
 		{
 			name:          "run error path",
 			file:          deletedFile,
+			errorExpected: true,
+		},
+		{
+			name:          "invalid hash",
+			file:          invalidFile,
 			errorExpected: true,
 		},
 	}

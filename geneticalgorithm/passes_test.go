@@ -110,24 +110,72 @@ func TestIntToPass(t *testing.T) {
 
 func TestMakeValid(t *testing.T) {
 	passMan := GetPassManager()
-	o3Int := passMan.GetO3Int()
-	o3String := passMan.makeValid(o3Int)
-	if o3String == "" {
-		t.Fatalf("Expected a valid O3 string, got none")
-	}
 
-	wellFormedCount := 0
-	for _, c := range o3String {
-		switch c {
-		case '(', '[', '{':
-			wellFormedCount++
-		case ')', ']', '}':
-			wellFormedCount--
-		default:
-			continue
+	mutatedO3function := passMan.GetO3Int()
+	for range 100 {
+		mutate(mutatedO3function, passMan.MaxPass, 100)
+	}
+	for i := range passMan.MaxPass {
+		if passMan.functionRange.Within(i) {
+			mutatedO3function[0] = i
 		}
 	}
-	if wellFormedCount != 0 {
-		t.Fatalf("Expected O3 string to be well-formed, got %s", o3String)
+
+	mutatedO3loop := passMan.GetO3Int()
+	for range 100 {
+		mutate(mutatedO3loop, passMan.MaxPass, 100)
+	}
+	for i := range passMan.MaxPass {
+		if passMan.loopRange.Within(i) {
+			mutatedO3loop[0] = i
+		}
+	}
+
+	tests := []struct {
+		name string
+		seq  []int
+	}{
+		{
+			name: "O3 sequence",
+			seq:  passMan.GetO3Int(),
+		},
+		{
+			name: "empty sequence",
+			seq:  []int{},
+		},
+		{
+			name: "mutated sequence starting with function pass",
+			seq:  mutatedO3function,
+		},
+		{
+			name: "mutated sequence starting with loop pass",
+			seq:  mutatedO3loop,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			passString := passMan.makeValid(test.seq)
+			if passString == "" && len(test.seq) > 0 {
+				t.Fatalf("Expected a valid string, got none")
+			} else if passString != "" && len(test.seq) == 0 {
+				t.Fatalf("Expected an empty string, got %s", passString)
+			}
+
+			wellFormedCount := 0
+			for _, c := range passString {
+				switch c {
+				case '(', '[', '{', '<':
+					wellFormedCount++
+				case ')', ']', '}', '>':
+					wellFormedCount--
+				default:
+					continue
+				}
+			}
+			if wellFormedCount != 0 {
+				t.Fatalf("Expected string to be well-formed, got %s", passString)
+			}
+		})
 	}
 }

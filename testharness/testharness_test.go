@@ -38,8 +38,9 @@ func initEnv() func() {
 func TestGetSetBaselineStats(t *testing.T) {
 	tests := []struct {
 		name                          string
-		runFileOvveride               func()
-		compileFileWithPassesOvveride func()
+		runFileOverride               func()
+		compileFileWithPassesOverride func()
+		runProgramUntilStableOverride func()
 		errorExpected                 bool
 		hashExpected                  uint64
 		durationExpected              time.Duration
@@ -47,7 +48,7 @@ func TestGetSetBaselineStats(t *testing.T) {
 	}{
 		{
 			name: "getExpectedHash error path",
-			compileFileWithPassesOvveride: func() {
+			compileFileWithPassesOverride: func() {
 				compileFileWithPasses = func(_ []string, _ string, _ int, _ bool) (time.Duration, int, *os.File, error) {
 					return 0, 0, nil, fmt.Errorf("error")
 				}
@@ -59,13 +60,13 @@ func TestGetSetBaselineStats(t *testing.T) {
 		},
 		{
 			name: "getExpectedExecutionStats error path",
-			runFileOvveride: func() {
-				runFile = func(_ *os.File, _ time.Duration) (time.Duration, int64, uint64, error) {
-					return 0, 0, 0, fmt.Errorf("error")
+			runProgramUntilStableOverride: func() {
+				runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
+					return 0, 0, fmt.Errorf("error")
 				}
 			},
 			errorExpected:    true,
-			hashExpected:     0,
+			hashExpected:     1,
 			durationExpected: -time.Second,
 			memoryExpected:   0,
 		},
@@ -83,13 +84,16 @@ func TestGetSetBaselineStats(t *testing.T) {
 			restore := initEnv()
 			defer restore()
 
-			if test.runFileOvveride != nil {
-				test.runFileOvveride()
+			if test.runFileOverride != nil {
+				test.runFileOverride()
 			}
-			if test.compileFileWithPassesOvveride != nil {
-				test.compileFileWithPassesOvveride()
+			if test.compileFileWithPassesOverride != nil {
+				test.compileFileWithPassesOverride()
 			}
-			d, m, err := GetSetBaselineStats([]string{"echo", "helloworld"}, "nil", func() {}, 1)
+			if test.runProgramUntilStableOverride != nil {
+				test.runProgramUntilStableOverride()
+			}
+			d, m, err := GetSetBaselineStats([]string{"echo", "helloworld"}, "nil", func() {}, 2)
 			if d != test.durationExpected || m != test.memoryExpected || (err != nil) != test.errorExpected {
 				t.Errorf("Expected %v, %v, %v, but got %v, %v, %v",
 					test.durationExpected,

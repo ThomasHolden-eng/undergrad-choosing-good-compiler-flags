@@ -9,15 +9,16 @@ import (
 func reproduce(a, b []int, maxVal, maxLen int) ([]int, []int) {
 	var newA, newB []int
 	randNum := rand.Int() % 5
+	fallback := func(a, b []int) ([]int, []int) { return pairMutate(a, b, maxVal, maxLen) }
 
 	if len(a) == 0 || len(b) == 0 { // avoid splitting at 0
 		newA, newB = pairMutate(a, b, maxVal, maxLen)
 	} else if randNum < 3 && !slices.Equal(a, b) {
-		newA, newB = lcsCrossover(a, b)
+		newA, newB = lcsCrossover(a, b, fallback)
 	} else if randNum == 3 || slices.Equal(a, b) {
-		newA, newB = twoPointCrossover(a, b)
+		newA, newB = twoPointCrossover(a, b, fallback)
 	} else {
-		newA, newB = pairMutate(a, b, maxVal, maxLen)
+		newA, newB = fallback(a, b)
 	}
 
 	if len(newA) > maxLen {
@@ -41,17 +42,15 @@ func pairMutate(a, b []int, maxVal, maxLen int) ([]int, []int) {
 }
 
 // onePointCrossover enacts one point crossover between two population members.
-func onePointCrossover(a, b []int) ([]int, []int) {
-	if len(a) == 0 || len(b) == 0 {
-		return a, b
+func onePointCrossover(a, b []int, fallback func([]int, []int) ([]int, []int)) ([]int, []int) {
+	if len(a) <= 1 || len(b) <= 1 { // Avoid panic
+		return fallback(a, b)
 	}
 
-	var aPtr int
-	var bPtr int
 	var newA, newB []int
 
-	aPtr = rand.Int()%(len(a)-2) + 1
-	bPtr = rand.Int()%(len(b)-2) + 1
+	aPtr := rand.Intn(len(a)-1) + 1
+	bPtr := rand.Intn(len(b)-1) + 1
 
 	newA = append(newA, a[:aPtr]...)
 	newA = append(newA, b[bPtr:]...)
@@ -63,22 +62,18 @@ func onePointCrossover(a, b []int) ([]int, []int) {
 }
 
 // twoPointCrossover enacts two point crossover between two population members.
-func twoPointCrossover(a, b []int) ([]int, []int) {
-	if len(a) == 0 || len(b) == 0 {
-		return a, b
+func twoPointCrossover(a, b []int, fallback func([]int, []int) ([]int, []int)) ([]int, []int) {
+	if len(a) <= 2 || len(b) <= 2 { // Avoid panic
+		return fallback(a, b)
 	}
 
-	var aPtrStart int
-	var aPtrEnd int
-	var bPtrStart int
-	var bPtrEnd int
 	var newA, newB []int
 
-	aPtrStart = rand.Int()%(len(a)-2) + 1
-	aPtrEnd = rand.Int()%(len(a)-aPtrStart-1) + 1 + aPtrStart
+	aPtrStart := rand.Intn(len(a)-2) + 1
+	aPtrEnd := rand.Intn(len(a)-aPtrStart-1) + 1 + aPtrStart
 
-	bPtrStart = rand.Int()%(len(b)-2) + 1
-	bPtrEnd = rand.Int()%(len(b)-bPtrStart-1) + 1 + bPtrStart
+	bPtrStart := rand.Intn(len(b)-2) + 1
+	bPtrEnd := rand.Intn(len(b)-bPtrStart-1) + 1 + bPtrStart
 
 	newA = append(newA, a[:aPtrStart]...)
 	newA = append(newA, b[bPtrStart:bPtrEnd]...)
@@ -96,14 +91,14 @@ func twoPointCrossover(a, b []int) ([]int, []int) {
 // two new members with the common subsequence preserved.
 //
 // https://en.wikipedia.org/wiki/Longest_common_subsequence
-func lcsCrossover(a, b []int) ([]int, []int) {
+func lcsCrossover(a, b []int, fallback func([]int, []int) ([]int, []int)) ([]int, []int) {
 	if len(a) == 0 || len(b) == 0 {
-		return a, b
+		return fallback(a, b)
 	}
 
 	matchedIdxsA, matchedIdxsB := lcsPairs(a, b)
 	if len(matchedIdxsA) == 0 || len(matchedIdxsB) == 0 {
-		return twoPointCrossover(a, b)
+		return twoPointCrossover(a, b, fallback)
 	}
 	var newA, newB []int
 
@@ -130,6 +125,10 @@ func lcsCrossover(a, b []int) ([]int, []int) {
 			newB = append(newB, val)
 			prevA, prevB = currA+1, currB+1
 		}
+	}
+
+	if slices.Equal(newA, a) || slices.Equal(newA, b) {
+		return fallback(a, b)
 	}
 
 	return newA, newB
