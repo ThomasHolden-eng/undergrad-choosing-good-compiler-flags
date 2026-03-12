@@ -10,7 +10,11 @@ func MedianConfidence[T util.Number](list []T, threshold float64) bool {
 	return estimateMedianRSE(list) < threshold
 }
 
-// estimateRSE provides a value for the relative standard error of a slice w.r.t the median.
+// estimateRSE provides a value for the relative standard error of a slice of benchmark measurements
+// w.r.t the median.
+//
+// As the distribution is log normal, we take ln of each element.
+// This also means our data is inherently relative, without dividing by the median.
 //
 // We approximate sample σ, s with the formula: s ≈ IQR / 1.35 ≈ IQR * 0.74 [1]
 // Then use the formula: σ^2 = 1/(4*n*f(m)^2) [2] for the population variation
@@ -26,19 +30,21 @@ func MedianConfidence[T util.Number](list []T, threshold float64) bool {
 // [3] Everitt, B. S. (2003). The Cambridge Dictionary of Statistics. Cambridge University Press.
 // ISBN 978-0-521-81099-9.
 func estimateMedianRSE[T util.Number](list []T) float64 {
+	if len(list) == 0 {
+		return 0
+	}
 	const (
 		ratio                float64 = 1 / 1.35
 		fmMedianSqrt         float64 = 1.253314137 // math.Sqrt(math.Pi / 2.0) can't be const
 		ratioDotFmMedianSqrt float64 = ratio * fmMedianSqrt
 	)
 
-	iqr := util.IQR(list) // Cannot be negative
-	median := math.Abs(util.Median(list))
-	sqrtN := math.Sqrt(float64(len(list)))
+	logList := util.ForEach(list, func(i T) float64 {
+		return math.Log(float64(i))
+	})
 
-	if median <= 1 { // Edge case wherein we just return σ of the sampling distribution
-		return (ratioDotFmMedianSqrt * iqr) / sqrtN
-	}
+	iqr := util.IQR(logList) // Cannot be negative
+	sqrtN := math.Sqrt(float64(len(logList)))
 
-	return (ratioDotFmMedianSqrt * iqr) / (sqrtN * median)
+	return (ratioDotFmMedianSqrt * iqr) / sqrtN
 }

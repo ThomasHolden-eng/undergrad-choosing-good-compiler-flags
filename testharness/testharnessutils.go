@@ -308,6 +308,8 @@ var runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (floa
 			return util.MAX_FLOAT64, util.MAX_INT64, fmt.Errorf(
 				"execution out hash: %v\ntrue out hash: %v", hash, trueHash,
 			)
+		} else if execution_t == 0 {
+			continue
 		}
 
 		times = append(times, int64(execution_t))
