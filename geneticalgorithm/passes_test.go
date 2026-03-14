@@ -29,11 +29,11 @@ func TestLoadPasses(t *testing.T) {
 	passMan.loadPasses()
 
 	for i := range passMan.MaxPass {
-		passString := passMan.GetInverse(i)
-		if passString == nil {
+		passString, ok := passMan.GetInverse(i)
+		if !ok {
 			t.Errorf("Expected pass %d to be loaded", i)
-		} else if passMan.Get(*passString) == nil {
-			t.Errorf("Expected pass value for %s to be loaded", *passString)
+		} else if n, ok := passMan.Get(passString); !ok || n != i {
+			t.Errorf("Expected pass value for %s to be loaded", passString)
 		}
 	}
 }
@@ -51,11 +51,12 @@ func TestInitRanges(t *testing.T) {
 	}
 	o3String := getO3String()
 	for i := range passMan.MaxPass {
+		s, ok := passMan.GetInverse(i)
 		if !passMan.moduleRange.Within(i) &&
 			!passMan.cgsccRange.Within(i) &&
 			!passMan.functionRange.Within(i) &&
 			!passMan.loopRange.Within(i) &&
-			!slices.Contains(o3String, *passMan.GetInverse(i)) { // O3 module passes are excluded
+			ok && !slices.Contains(o3String, s) { // O3 module passes are excluded
 			t.Errorf("Expected ranges to cover pass %d", i)
 		}
 	}

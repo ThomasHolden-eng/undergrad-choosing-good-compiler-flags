@@ -1,4 +1,4 @@
-package geneticalgorithm
+package util
 
 import (
 	"fmt"
@@ -55,21 +55,16 @@ func (b *BidirectionalMap[K, V]) PutInverse(key V, value K) error {
 }
 
 // Get accesses the map by key to obtain a value.
-func (b *BidirectionalMap[K, V]) Get(key K) *V {
-	if existingValue, ok := b.direct[key]; ok {
-		return &existingValue
-	} else {
-		return nil
-	}
+func (b *BidirectionalMap[K, V]) Get(key K) (V, bool) {
+	existingValue, ok := b.direct[key]
+	return existingValue, ok
+
 }
 
 // GetInverse accesses the map by value to obtain a key.
-func (b *BidirectionalMap[K, V]) GetInverse(key V) *K {
-	if existingValue, ok := b.inverse[key]; ok {
-		return &existingValue
-	} else {
-		return nil
-	}
+func (b *BidirectionalMap[K, V]) GetInverse(key V) (K, bool) {
+	existingValue, ok := b.inverse[key]
+	return existingValue, ok
 }
 
 // Delete removes a key mapping from a bidirectional map.

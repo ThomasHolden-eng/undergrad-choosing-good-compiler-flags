@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"runtime"
 	"slices"
+	"time"
 
 	"github.com/google/shlex"           // Parsing logic should be exported as not part of the genetic algorithm
 	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
@@ -156,6 +157,20 @@ func (p *Population) RunNGenerations(n int) int {
 		}
 	}
 	return n
+}
+
+// RunGenerationsForDuration executes nextGeneration until the duration is exceeded.
+func (p *Population) RunGenerationsForDuration(d time.Duration) time.Duration {
+	PBar = progressbar.Default(-1)
+	startTime := time.Now()
+	for time.Since(startTime) < d {
+		converged := p.nextGeneration()
+
+		if converged && time.Since(startTime) > d/10 {
+			return time.Since(startTime)
+		}
+	}
+	return time.Since(startTime)
 }
 
 // sortPop sorts the population depending on their achieved results.

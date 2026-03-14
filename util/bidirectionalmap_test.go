@@ -1,4 +1,4 @@
-package geneticalgorithm
+package util
 
 import (
 	"slices"
@@ -46,12 +46,12 @@ func TestPutInverse(t *testing.T) {
 
 // TestGet verifies that the Get function, returns nil for missing keys and
 // the correct value for existing keys.
-func TestGet(t *testing.T) {
+func TestBDMapGet(t *testing.T) {
 	defer bidirectionalMapTeardown()
 
-	val := m.Get(0)
-	if val != nil {
-		t.Fatalf("Got %v, but expected nil", *val)
+	val, ok := m.Get(0)
+	if ok {
+		t.Fatalf("Got %v, but expected nil", val)
 	}
 
 	err := m.Put(0, 1)
@@ -59,9 +59,9 @@ func TestGet(t *testing.T) {
 		t.Fatalf("Errored on attempted put %v", err)
 	}
 
-	val = m.Get(0)
-	if *val != 1 {
-		t.Fatalf("Got %v, but expected 1", val)
+	val, ok = m.Get(0)
+	if !ok || val != 1 {
+		t.Fatalf("Got %v, but expected 1 | ok=%v", val, ok)
 	}
 }
 
@@ -70,9 +70,9 @@ func TestGet(t *testing.T) {
 func TestGetInverse(t *testing.T) {
 	defer bidirectionalMapTeardown()
 
-	val := m.GetInverse(1)
-	if val != nil {
-		t.Fatalf("Got %v, but expected nil", *val)
+	val, ok := m.GetInverse(1)
+	if ok {
+		t.Fatalf("Got %v, but expected nil", val)
 	}
 
 	err := m.Put(0, 1)
@@ -80,9 +80,9 @@ func TestGetInverse(t *testing.T) {
 		t.Fatalf("Errored on attempted put %v", err)
 	}
 
-	val = m.GetInverse(1)
-	if *val != 0 {
-		t.Fatalf("Got %v, but expected 1", val)
+	val, ok = m.GetInverse(1)
+	if !ok || val != 0 {
+		t.Fatalf("Got %v, but expected 0 | ok=%v", val, ok)
 	}
 }
 
@@ -96,16 +96,16 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("Errored on attempted put %v", err)
 	}
 
-	val := m.Get(0)
-	if *val != 1 {
-		t.Fatalf("Got %v, but expected 1", val)
+	val, ok := m.Get(0)
+	if !ok || val != 1 {
+		t.Fatalf("Got %v, but expected 1 | ok=%v", val, ok)
 	}
 
 	m.Delete(0)
 
-	val = m.Get(0)
-	if val != nil {
-		t.Fatalf("Got %v, but expected nil", *val)
+	val, ok = m.Get(0)
+	if ok {
+		t.Fatalf("Got %v, but expected nil", val)
 	}
 }
 
@@ -119,16 +119,16 @@ func TestDeleteInverse(t *testing.T) {
 		t.Fatalf("Errored on attempted put %v", err)
 	}
 
-	val := m.Get(0)
-	if *val != 1 {
+	val, ok := m.Get(0)
+	if !ok || val != 1 {
 		t.Fatalf("Got %v, but expected 1", val)
 	}
 
 	m.DeleteInverse(1)
 
-	val = m.Get(0)
-	if val != nil {
-		t.Fatalf("Got %v, but expected nil", *val)
+	val, ok = m.Get(0)
+	if ok {
+		t.Fatalf("Got %v, but expected nil", val)
 	}
 }
 

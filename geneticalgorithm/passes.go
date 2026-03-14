@@ -7,7 +7,7 @@ import (
 
 // PassManager initializes and contains pass data.
 type PassManager struct {
-	BidirectionalMap[string, int]
+	util.BidirectionalMap[string, int]
 	MaxPass int // MaxPass is the highest index/size of the mapping in PassManager
 
 	moduleRange   *util.Range[int]
@@ -41,7 +41,7 @@ func (pm *PassManager) loadPasses() {
 
 	assignments := 0
 	for _, pass := range passList {
-		if _, ok := pm.direct[pass]; !ok { // If the pass is not already in the map
+		if _, ok := pm.Get(pass); !ok { // If the pass is not already in the map
 			pm.Put(pass, assignments)
 			assignments++
 		}
@@ -53,22 +53,23 @@ func (pm *PassManager) loadPasses() {
 
 // initRanges initialises the pass ranges
 func (pm *PassManager) initRanges() {
-	pm.moduleRange = util.NewRange(
-		*pm.Get("always-inline"),
-		*pm.Get("wholeprogramdevirt"),
-	)
-	pm.cgsccRange = util.NewRange(
-		*pm.Get("argpromotion"),
-		*pm.Get("coro-annotation-elide"),
-	)
-	pm.functionRange = util.NewRange(
-		*pm.Get("adce"),
-		*pm.Get("wasm-eh-prepare"),
-	)
-	pm.loopRange = util.NewRange(
-		*pm.Get("loop-flatten"),
-		*pm.Get("loop-versioning-licm"),
-	)
+	alwaysinline, ok1 := pm.Get("always-inline")
+	wholeprogramdevirt, ok2 := pm.Get("wholeprogramdevirt")
+	argpromotion, ok3 := pm.Get("argpromotion")
+	coroAnnotationElide, ok4 := pm.Get("coro-annotation-elide")
+	adce, ok5 := pm.Get("adce")
+	wasmEhPrepare, ok6 := pm.Get("wasm-eh-prepare")
+	loopFlatten, ok7 := pm.Get("loop-flatten")
+	loopVersioningLicm, ok8 := pm.Get("loop-versioning-licm")
+
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 || !ok8 {
+		panic("Could not find pass ranges")
+	}
+
+	pm.moduleRange = util.NewRange(alwaysinline, wholeprogramdevirt)
+	pm.cgsccRange = util.NewRange(argpromotion, coroAnnotationElide)
+	pm.functionRange = util.NewRange(adce, wasmEhPrepare)
+	pm.loopRange = util.NewRange(loopFlatten, loopVersioningLicm)
 }
 
 // Passes extracted from
@@ -430,12 +431,14 @@ func (pm *PassManager) GetO3Int() []int {
 
 // PassToInt returns the int mapped to by the string in the PassManager.
 func (pm *PassManager) PassToInt(s string) int {
-	return pm.direct[s]
+	n, _ := pm.Get(s)
+	return n
 }
 
 // PassToInt returns the string mapped to by the int in the PassManager.
 func (pm *PassManager) IntToPass(n int) string {
-	return pm.inverse[n]
+	s, _ := pm.GetInverse(n)
+	return s
 }
 
 // makeValid transforms a list of ints, representing passes, into a valid opt pipeline.
