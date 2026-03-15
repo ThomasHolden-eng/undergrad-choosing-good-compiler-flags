@@ -160,17 +160,18 @@ func (p *Population) RunNGenerations(n int) int {
 }
 
 // RunGenerationsForDuration executes nextGeneration until the duration is exceeded.
-func (p *Population) RunGenerationsForDuration(d time.Duration) time.Duration {
+func (p *Population) RunGenerationsForDuration(d time.Duration) int {
 	PBar = progressbar.Default(-1)
 	startTime := time.Now()
-	for time.Since(startTime) < d {
+	i := 0
+	for ; time.Since(startTime) < d; i++ {
 		converged := p.nextGeneration()
 
-		if converged && time.Since(startTime) > d/10 {
-			return time.Since(startTime)
+		if converged && i > 10 {
+			return i + 1
 		}
 	}
-	return time.Since(startTime)
+	return i
 }
 
 // sortPop sorts the population depending on their achieved results.
