@@ -1,6 +1,7 @@
-package geneticalgorithm
+package workerpool
 
 import (
+	"6CCS3PRJ/thomasholden/passmanager"
 	"6CCS3PRJ/thomasholden/util"
 	"slices"
 	"testing"
@@ -17,8 +18,8 @@ func pbarInit() {
 }
 
 // getTestPassManager creates a pass manager for testing purposes.
-func getTestPassManager() *PassManager {
-	return GetPassManager()
+func getTestPassManager() *passmanager.PassManager {
+	return passmanager.GetPassManager()
 }
 
 // TestValueFromJobStats tests the ValueFromJobStats function.
@@ -100,7 +101,7 @@ func TestWorkerPoolStartPoolCached(t *testing.T) {
 		fileNum:    make(chan int, workers),
 		SourceCmd:  []string{"clang", "main.c"},
 		passMan:    getTestPassManager(),
-		approxTime: 0 * time.Second,
+		ApproxTime: 0 * time.Second,
 		approxMem:  0,
 	}
 
@@ -117,14 +118,14 @@ func TestWorkerPoolStartPoolCached(t *testing.T) {
 	}
 
 	expectedScores := map[string]float64{
-		pool.passMan.makeValid(inputSequences[0]): 100.0,
-		pool.passMan.makeValid(inputSequences[1]): 200.0,
-		pool.passMan.makeValid(inputSequences[2]): 300.0,
+		pool.passMan.MakeValid(inputSequences[0]): 100.0,
+		pool.passMan.MakeValid(inputSequences[1]): 200.0,
+		pool.passMan.MakeValid(inputSequences[2]): 300.0,
 	}
 
 	for _, seq := range inputSequences {
 		pool.AddPassSequence(seq)
-		validSeq := pool.passMan.makeValid(seq)
+		validSeq := pool.passMan.MakeValid(seq)
 		pool.cache.Set(validSeq, expectedScores[validSeq])
 	}
 
@@ -138,8 +139,8 @@ func TestWorkerPoolStartPoolCached(t *testing.T) {
 
 	resultMap := make(map[string]float64)
 	for _, r := range results {
-		key := pool.passMan.makeValid(r.passSeq)
-		resultMap[key] = r.score
+		key := pool.passMan.MakeValid(r.PassSeq)
+		resultMap[key] = r.Score
 	}
 
 	for key, wantScore := range expectedScores {
@@ -177,7 +178,7 @@ func TestWorkerPoolQueueErrorResult(t *testing.T) {
 	close(pool.Results)
 
 	res := <-pool.Results
-	if res.score != util.MAX_FLOAT64 {
-		t.Errorf("Expected error score %v, got %v", util.MAX_FLOAT64, res.score)
+	if res.Score != util.MAX_FLOAT64 {
+		t.Errorf("Expected error score %v, got %v", util.MAX_FLOAT64, res.Score)
 	}
 }

@@ -1,18 +1,21 @@
-package geneticalgorithm
+package workerpool
 
 import (
+	"6CCS3PRJ/thomasholden/passmanager"
 	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
 	"fmt"
 
 	"sync"
 	"time"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 // Result holds the results for a singular pass sequence's execution
 type Result struct {
-	passSeq []int
-	score   float64
+	PassSeq []int
+	Score   float64
 }
 
 // WorkerPool provides functionality for pooling the execution of LLVM optimisation executions.
@@ -22,8 +25,8 @@ type WorkerPool struct {
 	cache      util.Cache[string, float64]
 	fileNum    chan int
 	Results    chan Result // a channel containing all results
-	passMan    *PassManager
-	approxTime time.Duration
+	passMan    *passmanager.PassManager
+	ApproxTime time.Duration
 	approxMem  int64
 }
 
@@ -35,6 +38,8 @@ const (
 	// The proportion of the score to be made up of execution time.
 	EXECUTION_WEIGHT float64 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
 )
+
+var PBar *progressbar.ProgressBar // to be moved
 
 // NewWorkerPool returns a pointer to a worker pool.
 func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*WorkerPool, error) {
@@ -50,12 +55,12 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 
 	pool.SourceCmd = sourceCmd
 
-	pool.passMan = GetPassManager()
+	pool.passMan = passmanager.GetPassManager()
 
 	pool.cache.Init(256)
-	pool.approxTime = time.Hour * 24
+	pool.ApproxTime = time.Hour * 24
 
-	validO3 := pool.passMan.makeValid(baseline)
+	validO3 := pool.passMan.MakeValid(baseline)
 	o3Time, o3MaxRSS, err := testharness.GetSetBaselineStats(sourceCmd, validO3,
 		func() {
 			fileNum := <-pool.fileNum
@@ -67,10 +72,12 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 		return nil, err
 	}
 
-	pool.approxTime = o3Time
+	pool.ApproxTime = o3Time
 	pool.approxMem = o3MaxRSS
 	fmt.Printf("\nO3 Time: %v\n", o3Time)
 	pool.cache.Set(validO3, valueFromJobStats(0, o3Time, 0, 0))
+
+	PBar = progressbar.Default(-1)
 
 	return pool, nil
 }
@@ -120,17 +127,17 @@ func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
 		defer func() { p.fileNum <- diff }()
 	}
 
-	validSeq := p.passMan.makeValid(seq)
+	validSeq := p.passMan.MakeValid(seq)
 
 	if score, ok := p.cache.Get(validSeq); ok && !dummy {
 		p.Results <- Result{
-			score:   score,
-			passSeq: seq,
+			Score:   score,
+			PassSeq: seq,
 		}
 		return
 	}
 
-	compilation_t, execution_t, binary_size, maxrss, err := (testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd, p.approxTime))
+	compilation_t, execution_t, binary_size, maxrss, err := (testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd, p.ApproxTime))
 	if dummy {
 		return
 	}
@@ -140,8 +147,8 @@ func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
 		p.queueErrorResult(seq)
 	} else {
 		p.Results <- Result{
-			score:   finalScore,
-			passSeq: seq,
+			Score:   finalScore,
+			PassSeq: seq,
 		}
 	}
 }
@@ -157,7 +164,7 @@ func valueFromJobStats(compilation, execution time.Duration, size int, memory in
 // queueErrorResult adds a result to the Result channel indicating sequence failure.
 func (p *WorkerPool) queueErrorResult(seq []int) {
 	p.Results <- Result{
-		score:   util.MAX_FLOAT64,
-		passSeq: seq,
+		Score:   util.MAX_FLOAT64,
+		PassSeq: seq,
 	}
 }

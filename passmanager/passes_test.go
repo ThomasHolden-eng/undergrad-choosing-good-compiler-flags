@@ -1,9 +1,23 @@
-package geneticalgorithm
+package passmanager
 
 import (
+	"math/rand/v2"
 	"slices"
 	"testing"
 )
+
+// basicMutate applies a random mutation to a slice for testing.
+func basicMutate(a []int, maxVal, maxLen int) []int {
+	point := rand.Int() % len(a)
+
+	newPass := a[point]
+	for newPass == a[point] {
+		newPass = rand.Int() % maxVal
+	}
+	a[point] = newPass
+
+	return a
+}
 
 func TestGetPassManager(t *testing.T) {
 	if GetPassManager() == nil {
@@ -114,7 +128,7 @@ func TestMakeValid(t *testing.T) {
 
 	mutatedO3function := passMan.GetO3Int()
 	for range 100 {
-		mutate(mutatedO3function, passMan.MaxPass, 100)
+		basicMutate(mutatedO3function, passMan.MaxPass, 100)
 	}
 	for i := range passMan.MaxPass {
 		if passMan.functionRange.Within(i) {
@@ -124,7 +138,7 @@ func TestMakeValid(t *testing.T) {
 
 	mutatedO3loop := passMan.GetO3Int()
 	for range 100 {
-		mutate(mutatedO3loop, passMan.MaxPass, 100)
+		basicMutate(mutatedO3loop, passMan.MaxPass, 100)
 	}
 	for i := range passMan.MaxPass {
 		if passMan.loopRange.Within(i) {
@@ -156,7 +170,7 @@ func TestMakeValid(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			passString := passMan.makeValid(test.seq)
+			passString := passMan.MakeValid(test.seq)
 			if passString == "" && len(test.seq) > 0 {
 				t.Fatalf("Expected a valid string, got none")
 			} else if passString != "" && len(test.seq) == 0 {

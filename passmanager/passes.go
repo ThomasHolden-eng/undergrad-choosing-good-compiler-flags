@@ -1,4 +1,4 @@
-package geneticalgorithm
+package passmanager
 
 import (
 	"6CCS3PRJ/thomasholden/util"
@@ -441,8 +441,8 @@ func (pm *PassManager) IntToPass(n int) string {
 	return s
 }
 
-// makeValid transforms a list of ints, representing passes, into a valid opt pipeline.
-func (pm *PassManager) makeValid(seq []int) string {
+// MakeValid transforms a list of ints, representing passes, into a valid opt pipeline.
+func (pm *PassManager) MakeValid(seq []int) string {
 	const (
 		INMODULE  byte   = iota
 		INFUNC    byte   = iota

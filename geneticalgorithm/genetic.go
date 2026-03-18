@@ -1,8 +1,11 @@
 package geneticalgorithm
 
 import (
+	"6CCS3PRJ/thomasholden/passmanager"
 	"6CCS3PRJ/thomasholden/testharness"
 	"6CCS3PRJ/thomasholden/util"
+	"6CCS3PRJ/thomasholden/workerpool"
+
 	"errors"
 	"fmt"
 	"math/rand"
@@ -10,26 +13,24 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/shlex"           // Parsing logic should be exported as not part of the genetic algorithm
-	"github.com/schollz/progressbar/v3" // Progress bar should be moved else where as also independent of GA
+	"github.com/google/shlex" // Parsing logic should be exported as not part of the genetic algorithm
+	// Progress bar should be moved else where as also independent of GA
 )
 
 // Population manages the genomes of the genetic algorithm.
 type Population struct {
-	members     [][]int      // slices of int slices, where each int slice is a pass sequence.
-	passMan     *PassManager // pointer to a PassManager.
-	maxLength   int          // the maximum length of any genome at any given time.
-	workers     *WorkerPool  // pointer to a pool of parallelised workers.
-	lastSafePop []int        // copy of the last safe population member for comparison.
-	convCount   int          // counter to track steps without improvement.
+	members     [][]int                  // slices of int slices, where each int slice is a pass sequence.
+	passMan     *passmanager.PassManager // pointer to a PassManager.
+	maxLength   int                      // the maximum length of any genome at any given time.
+	workers     *workerpool.WorkerPool   // pointer to a pool of parallelised workers.
+	lastSafePop []int                    // copy of the last safe population member for comparison.
+	convCount   int                      // counter to track steps without improvement.
 }
 
 const (
 	SAFE_POP       float64 = 0.25 // Proportion of population to apply reproduction & selection.
 	MUTATION_STEPS float64 = 1.2  // Number of times to run mutation (* population size).
 )
-
-var PBar *progressbar.ProgressBar // to be moved
 
 // CreatePopulation initialized a Population struct and its variables.
 func CreatePopulation(minPopSize, maxLength int, command string) (*Population, error) {
@@ -39,7 +40,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 
 	pop := &Population{}
 	pop.members = make([][]int, size)
-	pop.passMan = GetPassManager()
+	pop.passMan = passmanager.GetPassManager()
 	pop.maxLength = maxLength
 	pop.lastSafePop = []int{}
 
@@ -54,7 +55,7 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 		return nil, errors.New("command lexing failed: " + err.Error())
 	}
 
-	pop.workers, err = NewWorkerPool(commandSplit, workers, size, pop.members[0])
+	pop.workers, err = workerpool.NewWorkerPool(commandSplit, workers, size, pop.members[0])
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +105,11 @@ func (p *Population) nextGeneration() bool {
 }
 
 // elitism selects the top k population members depending on results.
-func (p *Population) elitism(results []Result, marker int) int {
+func (p *Population) elitism(results []workerpool.Result, marker int) int {
 	reproMarker := -1
 	for i := range marker {
-		if results[i].score < util.MAX_FLOAT64 {
-			p.members = append(p.members, slices.Clone(results[i].passSeq))
+		if results[i].Score < util.MAX_FLOAT64 {
+			p.members = append(p.members, slices.Clone(results[i].PassSeq))
 			reproMarker = i
 		}
 	}
@@ -148,7 +149,6 @@ func (p *Population) mutation(marker int) {
 
 // RunNGenerations executes nextGeneration n times.
 func (p *Population) RunNGenerations(n int) int {
-	PBar = progressbar.Default(-1)
 	for i := range n {
 		converged := p.nextGeneration()
 
@@ -161,7 +161,6 @@ func (p *Population) RunNGenerations(n int) int {
 
 // RunGenerationsForDuration executes nextGeneration until the duration is exceeded.
 func (p *Population) RunGenerationsForDuration(d time.Duration) int {
-	PBar = progressbar.Default(-1)
 	startTime := time.Now()
 	i := 0
 	for ; time.Since(startTime) < d; i++ {
@@ -175,11 +174,11 @@ func (p *Population) RunGenerationsForDuration(d time.Duration) int {
 }
 
 // sortPop sorts the population depending on their achieved results.
-func (p *Population) sortPop(results []Result) {
-	slices.SortFunc(results, func(a, b Result) int {
-		if a.score < b.score {
+func (p *Population) sortPop(results []workerpool.Result) {
+	slices.SortFunc(results, func(a, b workerpool.Result) int {
+		if a.Score < b.Score {
 			return -1
-		} else if a.score > b.score {
+		} else if a.Score > b.Score {
 			return 1
 		}
 		return 0
@@ -206,7 +205,7 @@ func (p *Population) testConvergence() bool {
 
 // Best returns the best performing population member's passes and execution time.
 func (p *Population) Best() (string, error) {
-	validOptimal := p.passMan.makeValid(p.members[0])
-	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd, p.workers.approxTime)
+	validOptimal := p.passMan.MakeValid(p.members[0])
+	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd, p.workers.ApproxTime)
 	return validOptimal, err
 }

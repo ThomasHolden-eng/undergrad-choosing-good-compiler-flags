@@ -6,7 +6,9 @@ import (
 	"slices"
 	"testing"
 
+	"6CCS3PRJ/thomasholden/passmanager"
 	"6CCS3PRJ/thomasholden/util"
+	"6CCS3PRJ/thomasholden/workerpool"
 )
 
 // TestestreatePopulation tests the creation of a population.
@@ -76,27 +78,27 @@ func TestCreatePopulation(t *testing.T) {
 func TestGenerateRandomIntSlice(t *testing.T) {
 	tests := []struct {
 		name      string
-		passMan   *PassManager
+		passMan   *passmanager.PassManager
 		maxLength int
 	}{
 		{
 			name:      "zero length",
-			passMan:   GetPassManager(),
+			passMan:   passmanager.GetPassManager(),
 			maxLength: 0,
 		},
 		{
 			name:      "small length",
-			passMan:   GetPassManager(),
+			passMan:   passmanager.GetPassManager(),
 			maxLength: 5,
 		},
 		{
 			name:      "~O3 length",
-			passMan:   GetPassManager(),
+			passMan:   passmanager.GetPassManager(),
 			maxLength: 75,
 		},
 		{
 			name:      "big length",
-			passMan:   GetPassManager(),
+			passMan:   passmanager.GetPassManager(),
 			maxLength: 150,
 		},
 	}
@@ -120,16 +122,16 @@ func TestGenerateRandomIntSlice(t *testing.T) {
 func TestElitism(t *testing.T) {
 	tests := []struct {
 		name        string
-		results     []Result
+		results     []workerpool.Result
 		marker      int
 		expectPanic bool
 		expectedLen int
 	}{
 		{
 			name: "success with valid results",
-			results: []Result{
-				{score: 1.0, passSeq: []int{1, 2}},
-				{score: 2.5, passSeq: []int{3, 4}},
+			results: []workerpool.Result{
+				{Score: 1.0, PassSeq: []int{1, 2}},
+				{Score: 2.5, PassSeq: []int{3, 4}},
 			},
 			marker:      2,
 			expectPanic: false,
@@ -137,8 +139,8 @@ func TestElitism(t *testing.T) {
 		},
 		{
 			name: "all results failing (panic)",
-			results: []Result{
-				{score: util.MAX_FLOAT64, passSeq: []int{1}},
+			results: []workerpool.Result{
+				{Score: util.MAX_FLOAT64, PassSeq: []int{1}},
 			},
 			marker:      1,
 			expectPanic: true,
@@ -178,7 +180,7 @@ func TestElitism(t *testing.T) {
 func TestReproduction(t *testing.T) {
 	p := &Population{
 		members:   make([][]int, 2, 5),
-		passMan:   &PassManager{MaxPass: 10},
+		passMan:   &passmanager.PassManager{MaxPass: 10},
 		maxLength: 10,
 	}
 	p.members[0] = []int{1, 2, 3}
@@ -196,7 +198,7 @@ func TestReproduction(t *testing.T) {
 func TestMutation(t *testing.T) {
 	p := &Population{
 		members:   make([][]int, 5),
-		passMan:   &PassManager{MaxPass: 20},
+		passMan:   &passmanager.PassManager{MaxPass: 20},
 		maxLength: 10,
 	}
 	p.members[0] = []int{1, 2, 3}
@@ -236,23 +238,23 @@ func TestMutation(t *testing.T) {
 func TestSortPopulation(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    []Result
-		expected []Result
+		input    []workerpool.Result
+		expected []workerpool.Result
 	}{
 		{
 			name:     "already sorted",
-			input:    []Result{{score: 1.0}, {score: 2.0}, {score: 3.0}},
-			expected: []Result{{score: 1.0}, {score: 2.0}, {score: 3.0}},
+			input:    []workerpool.Result{{Score: 1.0}, {Score: 2.0}, {Score: 3.0}},
+			expected: []workerpool.Result{{Score: 1.0}, {Score: 2.0}, {Score: 3.0}},
 		},
 		{
 			name:     "reverse sorted",
-			input:    []Result{{score: 3.0}, {score: 2.0}, {score: 1.0}},
-			expected: []Result{{score: 1.0}, {score: 2.0}, {score: 3.0}},
+			input:    []workerpool.Result{{Score: 3.0}, {Score: 2.0}, {Score: 1.0}},
+			expected: []workerpool.Result{{Score: 1.0}, {Score: 2.0}, {Score: 3.0}},
 		},
 		{
 			name:     "with equals",
-			input:    []Result{{score: 2.0}, {score: 1.0}, {score: 2.0}},
-			expected: []Result{{score: 1.0}, {score: 2.0}, {score: 2.0}},
+			input:    []workerpool.Result{{Score: 2.0}, {Score: 1.0}, {Score: 2.0}},
+			expected: []workerpool.Result{{Score: 1.0}, {Score: 2.0}, {Score: 2.0}},
 		},
 	}
 
