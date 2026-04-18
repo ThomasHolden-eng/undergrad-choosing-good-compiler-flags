@@ -429,10 +429,12 @@ func TestGetExpectedExecutionStats(t *testing.T) {
 	}
 
 	backupCompileFileWithPasses := compileFileWithPasses
+	backupApproxTime := approxTime
 	defer func() { compileFileWithPasses = backupCompileFileWithPasses }()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			defer func() { approxTime = backupApproxTime }()
 			compileFileWithPasses = test.override
 			setTrueHash(test.hash)
 			time, err := getExpectedExecutionStats([]string{}, "")
@@ -558,10 +560,14 @@ func TestRunProgramUntilStable(t *testing.T) {
 		},
 	}
 
+	backupApproxTime := approxTime
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			defer func() { approxTime = backupApproxTime }()
+
 			setTrueHash(test.hash)
-			execTime, maxRSS, err := runProgramUntilStable(test.file, time.Hour)
+			execTime, maxRSS, err := runProgramUntilStable(test.file)
 
 			if test.errorExpected != (err != nil) {
 				t.Errorf("expected error mismatch, got %v, expected? %v", err, test.errorExpected)

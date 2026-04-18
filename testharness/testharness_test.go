@@ -12,13 +12,15 @@ func initEnv() func() {
 	backupRunProgramUntilStable := runProgramUntilStable
 	backupRunFile := runFile
 	backupCompileFileWithPasses := compileFileWithPasses
+	backupApproxTime := approxTime
 	restore := func() {
 		runProgramUntilStable = backupRunProgramUntilStable
 		runFile = backupRunFile
 		compileFileWithPasses = backupCompileFileWithPasses
+		approxTime = backupApproxTime
 	}
 
-	runProgramUntilStable = func(_ *os.File, _ time.Duration) (float64, int64, error) {
+	runProgramUntilStable = func(_ *os.File) (float64, int64, error) {
 		return 2.0, 1024, nil
 	}
 	runFile = func(_ *os.File, _ time.Duration) (time.Duration, int64, uint64, error) {
@@ -61,7 +63,7 @@ func TestGetSetBaselineStats(t *testing.T) {
 		{
 			name: "getExpectedExecutionStats error path",
 			runProgramUntilStableOverride: func() {
-				runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
+				runProgramUntilStable = func(_ *os.File) (float64, int64, error) {
 					return 0, 0, fmt.Errorf("error")
 				}
 			},
@@ -135,7 +137,7 @@ func TestCompileAndExecute(t *testing.T) {
 		{
 			name: "runProgramUntilStable error path",
 			runProgramUntilStableOvveride: func() {
-				runProgramUntilStable = func(_ *os.File, _ time.Duration) (float64, int64, error) {
+				runProgramUntilStable = func(_ *os.File) (float64, int64, error) {
 					return 0, 0, fmt.Errorf("error")
 				}
 			},
@@ -168,7 +170,7 @@ func TestCompileAndExecute(t *testing.T) {
 			}
 
 			compilationTime, executionTime, binarySize, memUsage, err := CompileAndExecute(
-				"nil", 0, false, []string{"echo", "helloworld"}, 1*time.Second,
+				"nil", 0, false, []string{"echo", "helloworld"},
 			)
 
 			if compilationTime != test.compilationTimeExpected ||

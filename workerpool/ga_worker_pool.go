@@ -20,14 +20,12 @@ type Result struct {
 
 // WorkerPool provides functionality for pooling the execution of LLVM optimisation executions.
 type WorkerPool struct {
-	passSeq    [][]int
-	SourceCmd  []string // the command from which the project should be built
-	cache      util.Cache[string, float64]
-	fileNum    chan int
-	Results    chan Result // a channel containing all results
-	passMan    *passmanager.PassManager
-	ApproxTime time.Duration
-	approxMem  int64
+	passSeq   [][]int
+	SourceCmd []string // the command from which the project should be built
+	cache     util.Cache[string, float64]
+	fileNum   chan int
+	Results   chan Result // a channel containing all results
+	passMan   *passmanager.PassManager
 }
 
 const (
@@ -39,7 +37,7 @@ const (
 	EXECUTION_WEIGHT float64 = 1 - COMPILATION_WEIGHT - MEMORY_USAGE_WEIGHT - BINARY_SIZE_WEIGHT
 )
 
-var PBar *progressbar.ProgressBar // to be moved
+var PBar *progressbar.ProgressBar
 
 // NewWorkerPool returns a pointer to a worker pool.
 func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*WorkerPool, error) {
@@ -58,10 +56,9 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 	pool.passMan = passmanager.GetPassManager()
 
 	pool.cache.Init(256)
-	pool.ApproxTime = time.Hour * 24
 
 	validO3 := pool.passMan.MakeValid(baseline)
-	o3Time, o3MaxRSS, err := testharness.GetSetBaselineStats(sourceCmd, validO3,
+	o3Time, _, err := testharness.GetSetBaselineStats(sourceCmd, validO3,
 		func() {
 			fileNum := <-pool.fileNum
 			defer func() { pool.fileNum <- fileNum }()
@@ -72,8 +69,6 @@ func NewWorkerPool(sourceCmd []string, workers, numJobs int, baseline []int) (*W
 		return nil, err
 	}
 
-	pool.ApproxTime = o3Time
-	pool.approxMem = o3MaxRSS
 	fmt.Printf("\nO3 Time: %v\n", o3Time)
 	pool.cache.Set(validO3, valueFromJobStats(0, o3Time, 0, 0))
 
@@ -137,7 +132,7 @@ func (p *WorkerPool) runJob(seq []int, diff int, dummy bool) {
 		return
 	}
 
-	compilation_t, execution_t, binary_size, maxrss, err := (testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd, p.ApproxTime))
+	compilation_t, execution_t, binary_size, maxrss, err := (testharness.CompileAndExecute(validSeq, diff, false, p.SourceCmd))
 	if dummy {
 		return
 	}

@@ -164,7 +164,7 @@ func getExpectedExecutionStats(compilationCommand []string, passes string) (time
 		return -time.Second, fmt.Errorf("compilation failure: %w", err)
 	}
 
-	timeTaken, _, err := runProgramUntilStable(f, time.Hour*24)
+	timeTaken, _, err := runProgramUntilStable(f)
 	if err != nil {
 		return -time.Second, fmt.Errorf("execution failure: %w", err)
 	}
@@ -289,19 +289,20 @@ var compileFileWithPasses = func(compilationCommand []string, passes string, id 
 	return totalTime, binSize, binFile, nil
 }
 
-// runProgramUntilStable returns the median execution time and maxrss of a file execution.
+// runProgramUntilStable returns the UCB for the median execution time and maxrss of a
+// file execution.
 //
 // Defined as a variable function for testing purposes.
-var runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (float64, int64, error) {
+var runProgramUntilStable = func(toRun *os.File) (float64, int64, error) {
 	var times []int64
 	var rsss []int64
 
 	i := 0
 	for begin := time.Now(); (i < 5 || // run at least 5 times
-		!MedianConfidence(times, 0.03)) && // median is within 3%
+		!MedianConfidence(times, 0.03)) && // median is not within 3%
 		time.Since(begin) < 12*approxTime; { // run for at most 12*o3 time
 
-		execution_t, rss, hash, err := runFile(toRun, approxTime*12)
+		execution_t, rss, hash, err := runFile(toRun, approxTime*3)
 		if err != nil {
 			return util.MAX_FLOAT64, util.MAX_INT64, fmt.Errorf("execution failed: %v", err)
 		} else if hash != trueHash {
@@ -309,6 +310,7 @@ var runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (floa
 				"execution out hash: %v\ntrue out hash: %v", hash, trueHash,
 			)
 		} else if execution_t == 0 {
+			rsss = append(rsss, rss)
 			continue
 		}
 
@@ -316,5 +318,13 @@ var runProgramUntilStable = func(toRun *os.File, approxTime time.Duration) (floa
 		rsss = append(rsss, rss)
 		i++
 	}
-	return util.Median(times), slices.Max(rsss), nil
+
+	median := util.Median(times)
+	confidence := estimateMedianRSE(times)
+	errorScaledMedian := median + (median * confidence)
+	if errorScaledMedian < float64(approxTime) {
+		approxTime = time.Duration(errorScaledMedian)
+	}
+
+	return errorScaledMedian, slices.Max(rsss), nil
 }

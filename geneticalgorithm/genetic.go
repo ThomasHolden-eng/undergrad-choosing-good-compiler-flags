@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/shlex" // Parsing logic should be exported as not part of the genetic algorithm
-	// Progress bar should be moved else where as also independent of GA
 )
 
 // Population manages the genomes of the genetic algorithm.
@@ -36,8 +35,7 @@ const (
 func CreatePopulation(minPopSize, maxLength int, command string) (*Population, error) {
 	workers := runtime.NumCPU() / 2
 	runtime.GOMAXPROCS(workers)
-	size := ((minPopSize / runtime.NumCPU()) + 1) * runtime.NumCPU()
-
+	size := ((minPopSize / workers) + 1) * workers
 	pop := &Population{}
 	pop.members = make([][]int, size)
 	pop.passMan = passmanager.GetPassManager()
@@ -206,6 +204,6 @@ func (p *Population) testConvergence() bool {
 // Best returns the best performing population member's passes and execution time.
 func (p *Population) Best() (string, error) {
 	validOptimal := p.passMan.MakeValid(p.members[0])
-	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd, p.workers.ApproxTime)
+	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd)
 	return validOptimal, err
 }

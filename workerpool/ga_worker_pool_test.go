@@ -97,12 +97,10 @@ func TestWorkerPoolStartPoolCached(t *testing.T) {
 
 	// Bypass NewWorkerPool's external calls
 	pool := &WorkerPool{
-		passSeq:    make([][]int, 0, numJobs),
-		fileNum:    make(chan int, workers),
-		SourceCmd:  []string{"clang", "main.c"},
-		passMan:    getTestPassManager(),
-		ApproxTime: 0 * time.Second,
-		approxMem:  0,
+		passSeq:   make([][]int, 0, numJobs),
+		fileNum:   make(chan int, workers),
+		SourceCmd: []string{"clang", "main.c"},
+		passMan:   getTestPassManager(),
 	}
 
 	for i := 0; i < workers; i++ {

@@ -7,10 +7,13 @@ import (
 	"time"
 )
 
+var approxTime time.Duration = time.Hour * 24
+var approxMem int64
+
 // GetSetBaselineStats returns the execution time and memory usage for the baseline while setting the
 // ground truth hash value.
 func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc func(), workers int) (time.Duration, int64, error) {
-	trueHash, mem, err := getExpectedHash(compilationCommand, passes)
+	trueHash, baseMem, err := getExpectedHash(compilationCommand, passes)
 	if err != nil {
 		return -time.Second, 0, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err)
 	}
@@ -30,21 +33,22 @@ func GetSetBaselineStats(compilationCommand []string, passes string, noiseFunc f
 			}
 		}()
 	}
-	o3Time, err := getExpectedExecutionStats(compilationCommand, passes)
+	baseTime, err := getExpectedExecutionStats(compilationCommand, passes)
 	close(done)
 	if err != nil {
 		return -time.Second, 0, fmt.Errorf("failed basic execution, is the command formatted correctly?:\n%v", err)
 	}
 	fmt.Println(": Successfully executed -O3.")
 
-	return o3Time, mem, nil
+	approxTime, approxMem = baseTime, baseMem
+	return baseTime, baseMem, nil
 }
 
 // CompileAndExecute manages interfacing with the test harness to compile and get a stable
 // time for execution of a pass sequence.
 //
 // Returns the compilation time, execution time, binary size and memory usage of the sequence.
-func CompileAndExecute(passes string, diff int, outLocal bool, SourceCmd []string, approxTime time.Duration) (
+func CompileAndExecute(passes string, diff int, outLocal bool, SourceCmd []string) (
 	time.Duration, time.Duration, int, int64, error) {
 	compilation_t, binary_size, newFile, err := compileFileWithPasses(
 		SourceCmd,
@@ -56,7 +60,7 @@ func CompileAndExecute(passes string, diff int, outLocal bool, SourceCmd []strin
 	}
 	defer os.Remove(newFile.Name())
 
-	execution_t, maxrss, err := runProgramUntilStable(newFile, approxTime)
+	execution_t, maxrss, err := runProgramUntilStable(newFile)
 	if err != nil {
 		return util.MAX_DURATION, util.MAX_DURATION, 0, 0, err
 	}
