@@ -180,3 +180,29 @@ func TestWorkerPoolQueueErrorResult(t *testing.T) {
 		t.Errorf("Expected error score %v, got %v", util.MAX_FLOAT64, res.Score)
 	}
 }
+
+// TestManageCPULoad simulates the scenario where the result channel is not yet full
+func TestManageCPULoad(t *testing.T) {
+	pbarInit()
+
+	workers := 2
+	pool := &WorkerPool{
+		passSeq: [][]int{{1}, {2}}, // 2 jobs
+		fileNum: make(chan int, workers),
+		Results: make(chan Result, 2),
+		passMan: getTestPassManager(),
+	}
+	for i := 0; i < workers; i++ {
+		pool.fileNum <- i
+	}
+	pool.cache.Init(10)
+
+	pool.cache.Set(pool.passMan.MakeValid([]int{1}), 1.0)
+	pool.cache.Set(pool.passMan.MakeValid([]int{2}), 1.0)
+
+	results := pool.StartPool()
+
+	if len(results) != 2 {
+		t.Errorf("Expected 2 results, got %d", len(results))
+	}
+}

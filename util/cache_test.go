@@ -47,17 +47,18 @@ func TestGet(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cache := Cache[int, int]{}
-			cache.Init(0)
+			cache.Init(1)
 
 			if test.hit {
-				cache.cache[1] = 1
+				cache.Set(1, 1)
 			}
 
 			value, ok := cache.Get(1)
 
 			if ok != test.hit {
 				t.Errorf("expected ok to be %v", test.hit)
-			} else if ok && value != 1 {
+			}
+			if ok && value != 1 {
 				t.Errorf("expected value to be 1, got %d", value)
 			}
 		})

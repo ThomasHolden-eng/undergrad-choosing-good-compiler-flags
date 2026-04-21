@@ -198,7 +198,7 @@ func (p *Population) testConvergence() bool {
 	}
 	p.lastSafePop = append([]int{}, currentSafePop...)
 
-	return p.convCount >= 5
+	return p.convCount >= 10
 }
 
 // Best returns the best performing population member's passes and execution time.
