@@ -27,8 +27,11 @@ type Population struct {
 }
 
 const (
+	LOADED_POP     float64 = 0.25 // Proportion of population to be loaded from file if possible
 	SAFE_POP       float64 = 0.25 // Proportion of population to apply reproduction & selection.
 	MUTATION_STEPS float64 = 1.2  // Number of times to run mutation (* population size).
+
+	POP_FILENAME string = "optimal_seqs.jsonl"
 )
 
 // CreatePopulation initialized a Population struct and its variables.
@@ -44,8 +47,20 @@ func CreatePopulation(minPopSize, maxLength int, command string) (*Population, e
 
 	pop.members[0] = pop.passMan.GetO3Int()
 	pop.members[0] = pop.members[0][:min(len(pop.members[0]), maxLength)]
+
+	loadedMembers, _ := util.LoadSequences(
+		POP_FILENAME,
+		int(float64(size)*LOADED_POP),
+	)
+
 	for i := range len(pop.members) - 1 {
-		pop.members[i+1] = pop.generateRandomIntSlice()
+		if len(loadedMembers) > 0 {
+			pop.members[i+1] = loadedMembers[0]
+			loadedMembers = loadedMembers[1:]
+		} else {
+			pop.members[i+1] = pop.generateRandomIntSlice()
+		}
+
 	}
 
 	commandSplit, err := shlex.Split(command)
@@ -161,7 +176,14 @@ func (p *Population) RunNGenerations(n int) int {
 func (p *Population) RunGenerationsForDuration(d time.Duration) int {
 	startTime := time.Now()
 	i := 0
+
 	for ; time.Since(startTime) < d; i++ {
+		minETA, maxETA := util.GetMinMaxTimes(startTime, d, i, p.convCount)
+		fmt.Printf(
+			"\n[Gen %d] Est. Remaining Time: %v (min) to %v (max)\n", i,
+			minETA.Round(time.Second), maxETA.Round(time.Second),
+		)
+
 		converged := p.nextGeneration()
 
 		if converged && i > 10 {
@@ -185,7 +207,7 @@ func (p *Population) sortPop(results []workerpool.Result) {
 
 // testConvergence evaluates whether the population has converged yet.
 //
-// This is decided based on whether the top population member has improved over 10 generations.
+// This is decided based on whether the population elites have improved over 10 generations.
 func (p *Population) testConvergence() bool {
 	safeMarker := int(SAFE_POP * float64(len(p.members)))
 	safeMarker = max(safeMarker-1, 0)
@@ -205,5 +227,8 @@ func (p *Population) testConvergence() bool {
 func (p *Population) Best() (string, error) {
 	validOptimal := p.passMan.MakeValid(p.members[0])
 	_, _, _, _, err := testharness.CompileAndExecute(validOptimal, 0, true, p.workers.SourceCmd)
+
+	err = errors.Join(util.SaveSequence(POP_FILENAME, p.members[0]))
+
 	return validOptimal, err
 }

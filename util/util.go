@@ -95,3 +95,22 @@ func NewRange[T Number](a, b T) *Range[T] {
 func (r *Range[T]) Within(n T) bool {
 	return r.start <= n && n <= r.end
 }
+
+// getMinMaxTimes returns the minimum and maximum expected time bounds until
+// execution will finish. This is done via calculating average generation time
+// and extrapolating based on convergence progress.
+func GetMinMaxTimes(startTime time.Time, maxTime time.Duration,
+	genCount, convergence int) (time.Duration, time.Duration) {
+	avgTime := time.Duration(0)
+	if genCount > 0 {
+		avgTime = time.Since(startTime) / time.Duration(genCount)
+	}
+	minGens := max(11-genCount, 10-convergence)
+
+	minT := time.Duration(minGens) * avgTime
+	maxT := maxTime - time.Since(startTime)
+
+	minT = min(minT, maxT) // minETA should not be greater than maxETA
+
+	return minT, maxT
+}
