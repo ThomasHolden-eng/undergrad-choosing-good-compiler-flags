@@ -300,8 +300,8 @@ func TestConvergenceTest(t *testing.T) {
 			name:           "reached convergence threshold",
 			members:        [][]int{{1, 2}, {3, 4}, {5, 6}, {7, 8}},
 			lastSafePop:    []int{1, 2},
-			initialConv:    4,
-			expectedConv:   5,
+			initialConv:    9,
+			expectedConv:   10,
 			expectedResult: true,
 		},
 	}

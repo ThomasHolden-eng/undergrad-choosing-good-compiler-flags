@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestArrayFromChannel(t *testing.T) {
@@ -49,12 +50,12 @@ func TestArrayFromChannel(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ch := tt.setup()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ch := test.setup()
 			got := ArrayFromChannel(ch)
-			if !slices.Equal(got, tt.expected) {
-				t.Errorf("generated array %v, wanted %v", got, tt.expected)
+			if !slices.Equal(got, test.expected) {
+				t.Errorf("generated array %v, wanted %v", got, test.expected)
 			}
 		})
 	}
@@ -117,11 +118,11 @@ func TestLinearInterpolate(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := linearInterpolate(tt.list, tt.tVal)
-			if got != tt.expected {
-				t.Errorf("got interpolated value %v, wanted %v", got, tt.expected)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := linearInterpolate(test.list, test.tVal)
+			if got != test.expected {
+				t.Errorf("got interpolated value %v, wanted %v", got, test.expected)
 			}
 		})
 	}
@@ -155,12 +156,12 @@ func TestMedian(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			listCopy := slices.Clone(tt.list)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listCopy := slices.Clone(test.list)
 			got := Median(listCopy)
-			if got != tt.expected {
-				t.Errorf("got median of %v, want %v", got, tt.expected)
+			if got != test.expected {
+				t.Errorf("got median of %v, want %v", got, test.expected)
 			}
 		})
 	}
@@ -189,12 +190,12 @@ func TestIQR(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			listCopy := slices.Clone(tt.list)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listCopy := slices.Clone(test.list)
 			got := IQR(listCopy)
-			if got != tt.expected {
-				t.Errorf("got iqr of %v, wanted %v", got, tt.expected)
+			if got != test.expected {
+				t.Errorf("got iqr of %v, wanted %v", got, test.expected)
 			}
 		})
 	}
@@ -275,12 +276,94 @@ func TestRange_Within(t *testing.T) {
 			expected: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.rng.Within(tt.val)
-			if got != tt.expected {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.rng.Within(test.val)
+			if got != test.expected {
 				t.Errorf("Range(%v, %v).Within(%v) = %v, want %v",
-					tt.rng.start, tt.rng.end, tt.val, got, tt.expected)
+					test.rng.start, test.rng.end, test.val, got, test.expected)
+			}
+		})
+	}
+}
+
+func TestGetMinMaxTimes(t *testing.T) {
+	withinTolerance := func(a, b time.Duration) bool {
+		const tolerance = 50 * time.Millisecond
+
+		diff := a - b
+		if diff < 0 {
+			diff = -diff
+		}
+		return diff <= tolerance
+	}
+
+	tests := []struct {
+		name        string
+		elapsedTime time.Duration
+		maxTime     time.Duration
+		genCount    int
+		convergence int
+		wantMinT    time.Duration
+		wantMaxT    time.Duration
+	}{
+		{
+			name:        "Zero generations completed",
+			elapsedTime: 10 * time.Second,
+			maxTime:     100 * time.Second,
+			genCount:    0,
+			convergence: 0,
+			wantMinT:    0,
+			wantMaxT:    90 * time.Second,
+		},
+		{
+			name:        "Early generations, bottlenecked by convergence",
+			elapsedTime: 10 * time.Second,
+			maxTime:     100 * time.Second,
+			genCount:    5,
+			convergence: 2,
+			wantMinT:    16 * time.Second,
+			wantMaxT:    90 * time.Second,
+		},
+		{
+			name:        "High convergencce, bottlenecked by early generation",
+			elapsedTime: 8 * time.Second,
+			maxTime:     100 * time.Second,
+			genCount:    8,
+			convergence: 9,
+			wantMinT:    3 * time.Second,
+			wantMaxT:    92 * time.Second,
+		},
+		{
+			name:        "Zero minGens expected",
+			elapsedTime: 40 * time.Second,
+			maxTime:     100 * time.Second,
+			genCount:    20,
+			convergence: 10,
+			wantMinT:    0,
+			wantMaxT:    60 * time.Second,
+		},
+		{
+			name:        "minT caps to maxT",
+			elapsedTime: 95 * time.Second,
+			maxTime:     100 * time.Second,
+			genCount:    10,
+			convergence: 0,
+			wantMinT:    5 * time.Second,
+			wantMaxT:    5 * time.Second,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			startTime := time.Now().Add(-test.elapsedTime)
+			minT, maxT := GetMinMaxTimes(startTime, test.maxTime, test.genCount, test.convergence)
+
+			if !withinTolerance(minT, test.wantMinT) {
+				t.Errorf("Got min of %v, expected %v", minT, test.wantMinT)
+			}
+			if !withinTolerance(maxT, test.wantMaxT) {
+				t.Errorf("Got max of %v, expected %v", maxT, test.wantMaxT)
 			}
 		})
 	}
